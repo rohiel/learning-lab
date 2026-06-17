@@ -1,0 +1,2146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Anam's Learning Lab</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg-deep: #1a0b2e;
+    --bg-mid: #2d1454;
+    --bg-card: #3a1d68;
+    --bg-card-soft: #44237a;
+    --purple-glow: #7c3aed;
+    --accent-blue: #2563eb;
+    --accent-blue-l: #3b82f6;
+    --accent-teal: #0d9488;
+    --accent-teal-l: #14b8a6;
+    --accent-orange: #ea8a0c;
+    --accent-orange-l: #f59e0b;
+    --accent-pink: #db2777;
+    --accent-pink-l: #ec4899;
+    --green: #16a34a;
+    --green-l: #22c55e;
+    --red: #dc2626;
+    --text: #f5f3ff;
+    --text-soft: #c4b5fd;
+    --text-dim: #8b7bb8;
+    --border: rgba(167,139,250,0.22);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: radial-gradient(ellipse at top, #2d1454 0%, #1a0b2e 60%, #0f0620 100%);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root { min-height: 100vh; }
+
+  .display { font-family: 'Fredoka', sans-serif; }
+
+  button { font-family: inherit; cursor: pointer; border: none; }
+  button:focus-visible { outline: 3px solid var(--accent-orange-l); outline-offset: 2px; }
+
+  @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+  @keyframes correctPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes floatUp { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-40px);opacity:0} }
+  @keyframes slideIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+
+  .spinner {
+    width: 38px; height: 38px; border-radius: 50%;
+    border: 4px solid rgba(255,255,255,0.15);
+    border-top-color: var(--accent-orange-l);
+    animation: spin 0.8s linear infinite;
+  }
+
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 5px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ============================================================
+   CONFIG — runtime detection of Claude API availability
+   ============================================================ */
+const API_URL = "https://api.anthropic.com/v1/messages";
+const MODEL = "claude-sonnet-4-6";
+
+/* ============================================================
+   CURRICULUM — the 8-week plans, baked in from MAP + Gemini data
+   ============================================================ */
+const MATH_WEEKS = {
+  1: { title: "Number & Operations", focus: "Decimals: division into decimals, decimal addition & subtraction. Multi-step word problems hiding the operation.", level: "decimals" },
+  2: { title: "Number & Operations II", focus: "Decimal multiplication & division mastery. Place value with decimals. Two-operation word problems.", level: "decimals" },
+  3: { title: "Fractions, Decimals & %", focus: "Converting between fractions, decimals, percentages. Fraction addition & subtraction.", level: "fractions" },
+  4: { title: "Fractions II", focus: "Fraction multiplication & division. Mixed numbers. Word problems combining fractions and decimals.", level: "fractions" },
+  5: { title: "Ratios & Proportions", focus: "Ratios, proportions, unit rates. The heaviest 6th-grade concept — depends on fraction/decimal mastery.", level: "ratios" },
+  6: { title: "Operations & Algebraic Thinking", focus: "Order of operations (PEMDAS), properties, writing basic expressions. Her 'Low' MAP area.", level: "algebra" },
+  7: { title: "Geometry, Area & Volume", focus: "Coordinate planes, area of complex shapes, intro to volume.", level: "geometry" },
+  8: { title: "Data & Diagnostic", focus: "Mean, median, mode, range. Comprehensive review and readiness test.", level: "data" }
+};
+
+const ENGLISH_WEEKS = {
+  1: { title: "Foundation & Mechanics", focus: "Prefix/suffix decoding, context clues, pronoun rules, dialogue punctuation.", lexile: "515-550" },
+  2: { title: "Mechanics II", focus: "Sentence-level mechanics, capitalization, periods, punctuation execution. Catching rushing errors.", lexile: "550-580" },
+  3: { title: "Root Words & Sentence Combining", focus: "Greek & Latin roots. Combining simple sentences into complex ones using conjunctions.", lexile: "580-620" },
+  4: { title: "Roots II & Complex Sentences", focus: "More roots, eliminating choppy writing, informational text comprehension.", lexile: "620-660" },
+  5: { title: "Advanced Editing & Paragraphs", focus: "Tier-2 academic words, outlining, writing one flawless paragraph at a time.", lexile: "660-700" },
+  6: { title: "Paragraph Structure II", focus: "Multi-paragraph structure, main idea, supporting detail across subjects.", lexile: "700-730" },
+  7: { title: "6th Grade Readiness Stamina", focus: "Speed drills on roots/prefixes. Reading science/history articles, highlighting main ideas.", lexile: "730-760" },
+  8: { title: "Readiness Stamina II", focus: "Heavy proofreading challenges — she edits highly flawed texts. Stretch toward 780L.", lexile: "760-780" }
+};
+
+/* Lexile target by week (English reading) */
+const LEXILE_BY_WEEK = { 1:540, 2:570, 3:600, 4:640, 5:680, 6:715, 7:745, 8:780 };
+/* Passage line length: starts low each week, grows. Day within week 1-7. */
+function passageLines(week, day) {
+  const weekFloor = { 1:5, 2:8, 3:10, 4:12, 5:14, 6:16, 7:18, 8:20 };
+  const floor = weekFloor[week] || 5;
+  return Math.min(floor + (day-1)*2, floor + 12);
+}
+
+/* Anam's interest universe — shared across math + reading */
+const INTEREST_THEMES = `Anam's interests (weave these into every passage and word problem):
+- Nature: trees, grass, flowers, plant biology
+- Insects, bugs, flies (entomology)
+- Rocks, minerals, precious stones, gem formation (earth science / geology)
+- Fiction tone she loves: thriller + comedy + MILD gore (never extreme), in the voice of Raina Telgemeier graphic novels (Smile, Guts, Sisters) — personal, funny, a little gross, real emotions.
+Math word problems and reading passages should share the SAME world when possible (e.g. a passage about Venus flytraps pairs with a math problem about how many flies it catches).`;
+
+const MODES = {
+  practice: { label: "Practice", count: 12, icon: "🌱", desc: "daily practice" },
+  test:     { label: "Weekly Test", count: 15, icon: "🏆", desc: "once a week" }
+};
+/* Daily practice grows in length across the week (Math & English) */
+function practiceCount(day) {
+  // Day 1 → 10 questions, +~0.8/day, capped at 15 by end of week
+  return Math.min(10 + Math.round((day - 1) * 0.83), 15);
+}
+
+/* ============================================================
+   STORAGE — persistent across sessions (Claude.ai storage API
+   if present, else localStorage fallback)
+   ============================================================ */
+const Store = {
+  async get(key, fallback) {
+    try {
+      if (window.storage && window.storage.get) {
+        const r = await window.storage.get(key);
+        return r && r.value ? JSON.parse(r.value) : fallback;
+      }
+    } catch(e) { /* fall through */ }
+    try {
+      const v = localStorage.getItem("anam_"+key);
+      return v ? JSON.parse(v) : fallback;
+    } catch(e) { return fallback; }
+  },
+  async set(key, value) {
+    const s = JSON.stringify(value);
+    try {
+      if (window.storage && window.storage.set) {
+        await window.storage.set(key, s);
+        return;
+      }
+    } catch(e) { /* fall through */ }
+    try { localStorage.setItem("anam_"+key, s); } catch(e) {}
+  }
+};
+
+/* ============================================================
+   CLAUDE API — content generation + vision
+   ============================================================ */
+async function callClaude(messages, system, maxTokens=1400, opts={}) {
+  const timeoutMs = opts.timeoutMs || 25000;
+  const retries = opts.retries != null ? opts.retries : 1;
+  const body = {
+    model: MODEL,
+    max_tokens: maxTokens,
+    messages: messages
+  };
+  if (system) body.system = system;
+
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    // each attempt gets its own timeout via AbortController
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+      if (!res.ok) {
+        const t = await res.text();
+        lastErr = new Error("API error " + res.status + ": " + t.slice(0,200));
+        // 4xx (bad request/auth) won't be fixed by retrying — bail immediately
+        if (res.status >= 400 && res.status < 500) throw lastErr;
+        continue; // 5xx: retry
+      }
+      const data = await res.json();
+      return data.content.filter(b => b.type === "text").map(b => b.text).join("\n");
+    } catch (e) {
+      clearTimeout(timer);
+      lastErr = e.name === "AbortError"
+        ? new Error("The tutor took too long to respond (timed out).")
+        : e;
+      // brief backoff before retrying
+      if (attempt < retries) await new Promise(r => setTimeout(r, 600));
+    }
+  }
+  throw lastErr || new Error("Request failed");
+}
+
+function extractJSON(text) {
+  let t = text.trim();
+  // strip code fences
+  t = t.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "");
+  // jump to first opening bracket/brace
+  const start = t.indexOf("{");
+  const startA = t.indexOf("[");
+  let s = start;
+  if (startA !== -1 && (start === -1 || startA < start)) s = startA;
+  if (s > 0) t = t.slice(s);
+
+  // First try: clean parse on the slice up to the last closing bracket
+  const lastB = t.lastIndexOf("}");
+  const lastA = t.lastIndexOf("]");
+  const e = Math.max(lastB, lastA);
+  let candidate = e !== -1 ? t.slice(0, e + 1) : t;
+  try { return JSON.parse(candidate); } catch (_) { /* fall through to recovery */ }
+
+  // Recovery: the response was likely truncated mid-array (the Test bug).
+  // Walk the string tracking string/escape state, and close any open
+  // structures at the last point where the JSON was still valid.
+  return recoverJSON(t);
+}
+
+/* Recover a truncated/garbled JSON object or array by tracking bracket
+   depth and string state, then closing what's open. Also salvages a
+   partial "questions" array so a Test with a cut-off last item still works. */
+function recoverJSON(t) {
+  let inStr = false, esc = false;
+  const stack = [];
+  let lastGoodElementEnd = -1; // index just after a complete top-level array element
+  let topArrayDepthMarker = null;
+
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) {
+      if (esc) { esc = false; }
+      else if (c === "\\") { esc = true; }
+      else if (c === '"') { inStr = false; }
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{" || c === "[") { stack.push(c); }
+    else if (c === "}" || c === "]") { stack.pop(); }
+    // when we close an object that sits directly inside an array, that's a
+    // complete element boundary we can safely truncate to.
+    if (c === "}" && stack.length >= 1 && stack[stack.length - 1] === "[") {
+      lastGoodElementEnd = i + 1;
+    }
+  }
+
+  // Build the best repaired candidate.
+  // Strategy A: truncate to the last complete array element, then close brackets.
+  if (lastGoodElementEnd !== -1) {
+    let head = t.slice(0, lastGoodElementEnd);
+    // close any still-open structures based on what remains on the stack
+    // recompute stack for the truncated head
+    const closers = remainingClosers(head);
+    const repaired = head + closers;
+    try { return JSON.parse(repaired); } catch (_) {}
+  }
+
+  // Strategy B: just close whatever is open at the very end.
+  const closers2 = remainingClosers(t);
+  try { return JSON.parse(t + closers2); } catch (_) {}
+
+  // Strategy C: if there's a "questions" array, salvage individual objects via regex-free scan.
+  const salvaged = salvageQuestions(t);
+  if (salvaged.length) return { questions: salvaged };
+
+  throw new Error("Could not parse questions from the tutor response. Please try again.");
+}
+
+function remainingClosers(s) {
+  let inStr = false, esc = false;
+  const stack = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}") { if (stack[stack.length-1] === "{") stack.pop(); }
+    else if (c === "]") { if (stack[stack.length-1] === "[") stack.pop(); }
+  }
+  // if we ended inside a string, close it first
+  let out = inStr ? '"' : "";
+  for (let i = stack.length - 1; i >= 0; i--) {
+    out += stack[i] === "{" ? "}" : "]";
+  }
+  return out;
+}
+
+/* Scan for complete {...} objects and JSON.parse each individually. */
+function salvageQuestions(t) {
+  const out = [];
+  let depth = 0, inStr = false, esc = false, startIdx = -1;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{") { if (depth === 0) startIdx = i; depth++; }
+    else if (c === "}") {
+      depth--;
+      if (depth === 0 && startIdx !== -1) {
+        const chunk = t.slice(startIdx, i + 1);
+        try {
+          const obj = JSON.parse(chunk);
+          if (obj && obj.question) out.push(obj);
+        } catch (_) {}
+        startIdx = -1;
+      }
+    }
+  }
+  return out;
+}
+
+/* Generate a batch of questions.
+   Practice = daily (10-15 questions, grows with the day of the week).
+   Test = weekly, fixed length.
+   Any session over 6 questions is generated in SAFE BATCHES of 5 and
+   stitched together, so no single API response is large enough to get
+   cut off mid-JSON (that was the "Test" error). */
+async function generateQuestions({ subject, week, mode, level, lexile, day, weakSpots, retentionQueue }) {
+  const count = mode === "practice" ? practiceCount(day) : MODES.test.count;
+
+  if (count > 6) {
+    // Generate batches IN PARALLEL so a big session takes about as long as
+    // one batch (~10s) instead of the sum of all of them (~30s+).
+    const batchSizes = [];
+    let remaining = count;
+    while (remaining > 0) { const n = Math.min(5, remaining); batchSizes.push(n); remaining -= n; }
+
+    // each batch retries itself once on failure; a batch that still fails
+    // yields [] rather than sinking the whole session.
+    const tryBatch = async (n) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const b = await generateBatch({ subject, week, mode, lexile, day, weakSpots, retentionQueue, count: n, levelHint: 1 });
+          if (b && b.length) return b;
+        } catch(e) { /* retry */ }
+      }
+      return [];
+    };
+    let results = await Promise.all(batchSizes.map(tryBatch));
+    let all = results.flat();
+
+    // Partial success is fine — proceed with whatever we got (e.g. 10 of 12).
+    // Only if we got NOTHING at all, make one more sequential attempt before giving up.
+    if (!all.length) {
+      try {
+        all = await generateBatch({ subject, week, mode, lexile, day, weakSpots, retentionQueue, count: Math.min(count,8), levelHint: 1 });
+      } catch(e) {}
+    }
+    if (!all.length) throw new Error("Could not generate questions. Please try again.");
+    return all.map((q, i) => ({ ...q, id: i + 1 }));
+  }
+
+  // small session: retry once on failure
+  try {
+    const b = await generateBatch({ subject, week, mode, lexile, day, weakSpots, retentionQueue, count, levelHint: 1 });
+    if (b && b.length) return b;
+  } catch(e) {}
+  const b2 = await generateBatch({ subject, week, mode, lexile, day, weakSpots, retentionQueue, count, levelHint: 1 });
+  if (!b2 || !b2.length) throw new Error("Could not generate questions. Please try again.");
+  return b2;
+}
+
+async function generateBatch({ subject, week, mode, lexile, day, weakSpots, retentionQueue, count, levelHint }) {
+  const wk = subject === "math" ? MATH_WEEKS[week] : ENGLISH_WEEKS[week];
+  const weakNote = weakSpots.length
+    ? `KNOWN WEAK SPOTS to target (70% of questions should hit these): ${weakSpots.join("; ")}.`
+    : `No confirmed weak spots yet — use this session to PROBE and find them.`;
+  const retentionNote = retentionQueue.length
+    ? `LONG-TERM RETENTION CHECK: re-test these previously-learned concepts to see if she still remembers them: ${retentionQueue.join("; ")}. Mark these questions with "retention": true.`
+    : ``;
+
+  let subjectRules = "";
+  if (subject === "math") {
+    subjectRules = `
+This is MATH. Her arithmetic engine WORKS (90% multiplication, 100% long division verified). DO NOT give isolated calculation drills.
+EVERY question is a WORD PROBLEM that hides the operation. She must figure out WHICH operation(s) to use.
+Difficulty ladder (level field 1-5):
+  1 = single hidden operation
+  2 = two operations, sequential (order given by story)
+  3 = two operations, SHE decides the order
+  4 = three operations + decimals
+  5 = multi-step with fractions/decimals + one distractor number that isn't needed
+
+*** CRITICAL — NUMBER CONSISTENCY (do not violate) ***
+- Every problem MUST have ONE unambiguous correct answer that follows cleanly from the numbers given.
+- Before finalizing each problem, SOLVE IT YOURSELF and put that worked result in "answer". Double-check the arithmetic.
+- Numbers must be internally consistent. NEVER state a quantity two ways that conflict (e.g. don't say "the 8 crystals together weigh 11.6g" and then also ask her to subtract a tray weight from 11.6 — that contradicts itself). If a total INCLUDES something to subtract, say so explicitly ("the tray PLUS crystals weigh 11.6g together").
+- A "distractor" is an EXTRA number that simply isn't needed (like a price when asking about weight). It must NOT create a contradiction or a second possible answer. The problem must still be fully solvable and unambiguous if she correctly ignores it.
+- When a problem includes a distractor number, set "hasDistractor": true and name it in "distractorNote" (e.g. "the $3.50 price is not needed").
+This week's content: ${wk.focus}
+Mix question types: most should be "fill" (she types a numeric answer), some "mc" (4 choices).
+For "fill" math answers, give the exact expected answer as a string in "answer" (e.g. "37.5").`;
+  } else {
+    subjectRules = `
+This is ENGLISH/READING. This week: ${wk.focus}. Target Lexile ~${lexile}L.
+Include a MIX:
+  - Vocabulary in context (prefix/suffix/root, context clues) — "mc" type
+  - Grammar/mechanics — ALWAYS use "fill" type for these, NEVER "mc". She must PRODUCE the correction herself, not pick from choices (multiple choice lets her pattern-match instead of applying the rule). This covers: punctuation, dialogue punctuation, capitalization, and pronouns. For a fill grammar question, give her a sentence to fix and put the corrected sentence (or the corrected portion) in "answer".
+  - PRONOUNS are TWO separate skills — tag them distinctly:
+      • "pronoun case" = choosing I vs. me / she vs. her (e.g. "Anam and ___ went")
+      • "pronoun order" = the convention that the speaker comes LAST (e.g. "Anam and I", not "I and Anam")
+    Make separate questions for each; do not bundle them.
+  - Reading comprehension: include 1-2 short PASSAGES (~${passageLines(week,day)} lines) then ask questions about them. Put passage text in a "passage" field on the question.
+  - If you include 2 passages that are RELATED, add a "connection" question that requires linking info BETWEEN them (set "connection": true).
+She RUSHES and guesses words that "sound fancy." Build questions that punish skimming and reward careful reading.`;
+  }
+
+  const system = `You are an expert 6th-grade-prep tutor creating quiz questions for Anam, a rising 6th grader.
+${INTEREST_THEMES}
+${subjectRules}
+${weakNote}
+${retentionNote}
+
+Return ONLY valid JSON, no prose, no markdown fences. Schema:
+{
+  "questions": [
+    {
+      "id": 1,
+      "type": "mc" | "fill",
+      "passage": "optional reading passage text (English only)",
+      "question": "the question text",
+      "choices": ["A","B","C","D"],   // only for type mc, exactly 4
+      "answer": "the correct choice text OR the exact fill answer",
+      "solution": "the full step-by-step path to the answer, in order, naming each operation/rule used. This is HIDDEN from the student and used only to help the tutor guide her correctly.",
+      "level": 1-5,                    // difficulty
+      "skill": "short tag e.g. 'decimal division', 'pronoun order', 'pronoun case', 'dialogue punctuation'",
+      "retention": false,              // true if this is a long-term recall check
+      "connection": false,             // true if it links two passages
+      "hasDistractor": false,          // math: true if an extra unneeded number is present
+      "distractorNote": ""             // math: which number isn't needed
+    }
+  ]
+}
+
+CRITICAL — INTERNAL CONSISTENCY (do not skip):
+Before finalizing each question, solve it yourself using the numbers/text exactly as written. The "answer" must follow logically and uniquely from the question.
+- Every number stated must be consistent with every other number. NEVER write a problem where the numbers contradict each other (e.g. saying "8 crystals together weigh 11.6g" AND "subtract the 0.9g tray" — that's contradictory because "together weigh" already means the crystals alone).
+- If you include a distractor (an unneeded number), the problem must still be fully solvable and have ONE correct answer when the distractor is ignored. The distractor must be clearly unnecessary, not contradictory.
+- For "fill" questions, the "answer" must be the exact value your own solution produces.
+- For "mc" questions, exactly ONE choice is correct and it must match "answer" verbatim.
+- Re-read each word problem as a student would and confirm there is exactly one defensible answer. If a problem is ambiguous or self-contradictory, FIX it before returning.
+
+Generate exactly ${count} questions. Order them roughly easy → hard, starting around level ${levelHint}. Keep language age-appropriate and warm.`;
+
+  const user = `Generate ${count} ${subject} questions for Week ${week} (${wk.title}), ${MODES[mode].label}. Make them fun and in Anam's world.`;
+  const txt = await callClaude([{ role: "user", content: user }], system, 4000,
+    { timeoutMs: 40000, retries: 0 });
+  let parsed;
+  try { parsed = extractJSON(txt); }
+  catch(e) { return []; }  // unparseable → empty so the caller can retry/proceed
+  const arr = parsed.questions || parsed;
+  return Array.isArray(arr) ? arr : [];
+}
+
+/* Check a free-text / fill answer with Claude when not an exact match */
+async function checkAnswer({ subject, question, expected, given, isGrammar }) {
+  const grammarRule = isGrammar
+    ? `This is a GRAMMAR/PUNCTUATION question, so punctuation and capitalization ARE the point — judge them strictly. A misplaced comma, missing comma, wrong quotation-mark placement, or wrong capital letter makes the answer INCORRECT even if the words are right. Do not give credit for "close."`
+    : `Allow equivalent forms (e.g. 0.5 = 1/2), minor spelling, and ignore trivial spacing.`;
+  const system = `You are grading one answer from a 6th grader. Be fair but accurate.
+${grammarRule}
+Return ONLY JSON: {"correct": true/false, "reason": "one short sentence"}`;
+  const user = `Question: ${question}
+Expected answer: ${expected}
+Student's answer: ${given}
+Is the student's answer correct?`;
+  try {
+    const txt = await callClaude([{ role: "user", content: user }], system, 200,
+      { timeoutMs: 18000, retries: 1 });
+    return extractJSON(txt);
+  } catch(e) {
+    // fallback: loose string compare so the button NEVER hangs
+    const norm = s => String(s).toLowerCase().replace(/[^a-z0-9.]/g,"");
+    return { correct: norm(expected) === norm(given), reason: "" };
+  }
+}
+
+/* Socratic hint when wrong — never gives the answer */
+async function getHint({ subject, question, given, expected, hasDistractor, distractorNote }) {
+  const distractorHint = hasDistractor
+    ? `IMPORTANT: This problem contains an extra number that is NOT needed (${distractorNote||"one of the numbers is a distractor"}). If her wrong answer suggests she used it, specifically ask her something like: "Did you use a number you didn't actually need? Which numbers does the question really ask about?"`
+    : ``;
+  const system = `You are Anam's warm, encouraging tutor. She got a question wrong.
+NEVER give the answer. Ask ONE short guiding question that helps her find her own mistake.
+Keep it to 1-2 sentences, friendly, age 11. No walls of text.
+${distractorHint}`;
+  const user = `Question: ${question}
+She answered: ${given}
+(The real answer is ${expected} — but DON'T reveal it.)
+Give one Socratic nudge.`;
+  return callClaude([{ role: "user", content: user }], system, 150, { timeoutMs: 15000, retries: 1 });
+}
+
+/* Ask her to explain a correct answer (catch lucky guesses) */
+const EXPLAIN_PROMPTS = [
+  "Nice! Quick — how did you figure that out?",
+  "Got it right! Tell me your thinking in one line.",
+  "Yes! What was the first step you did?",
+  "Correct! Which operation did you use, and why?"
+];
+
+/* Vision: analyze Supernote handwritten work */
+async function analyzeWork({ imageBase64, mediaType, problemContext }) {
+  const system = `You are Anam's math tutor. She uploaded a photo of her HANDWRITTEN work from her Supernote.
+Your job:
+1. Read her steps IN ORDER and trace her train of thought.
+2. If correct: name SPECIFICALLY what she did well so she repeats it.
+3. If there's a mistake: identify the EXACT step where it breaks, and classify the error as one of: "calculation slip", "conceptual gap", "rushing (skipped a step)", or "setup (misread the problem)".
+4. NEVER just give the final answer. Ask ONE Socratic question pointing her to the step to re-check.
+5. If any handwriting is unreadable, say which part and ask her to clarify — do NOT guess.
+Keep it warm, short, age 11. Use a few short lines, not a wall of text.`;
+  const ctx = problemContext ? `The problem she's working on: ${problemContext}` : `She didn't specify the problem — infer it from her work.`;
+  const messages = [{
+    role: "user",
+    content: [
+      { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
+      { type: "text", text: ctx + "\n\nRead my work and help me." }
+    ]
+  }];
+  return callClaude(messages, system, 700);
+}
+
+/* Weekly parent review */
+async function parentReview({ log }) {
+  const system = `You are an expert learning analyst advising Anam's parent (who is nearby during sessions).
+Analyze her session data. Be honest and specific — no fluff. Cover:
+1. Where she's improving (with evidence)
+2. Confirmed weak spots to target next
+3. Rushing / attention-to-detail signals
+4. Retention: what's sticking long-term vs. slipping
+5. Help-seeking: how often she clicked "I'm stuck" and on what — rising independence (fewer asks over time on a topic) is a good sign; a spike flags genuine confusion vs. mere rushing. Note any "needed help but got it right" skills as softer weak spots.
+6. Writing (if present): did she use target vocabulary, and how's her mechanics execution in free writing?
+7. One concrete recommendation for next week's focus.
+Keep it tight and scannable.`;
+  const user = `Here is Anam's recent session log (JSON):\n${JSON.stringify(log).slice(0, 6000)}\n\nGive me the parent review.`;
+  return callClaude([{ role: "user", content: user }], system, 1000);
+}
+
+/* ---- WRITING MODE ---- */
+/* Generate a short writing prompt that asks her to use practiced vocabulary */
+async function generateWritingPrompt({ week, day, practicedWords, weakSpots }) {
+  const lines = Math.min(5 + Math.floor((day-1)/2), 8); // starts at 5 lines, creeps up
+  const wordList = practicedWords.length
+    ? practicedWords.slice(-12)
+    : ["mineral", "specimen", "fragile", "ancient", "burrow"];
+  const targets = [];
+  // pick 3 target words
+  const pool = [...wordList];
+  for (let i=0; i<3 && pool.length; i++) {
+    targets.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+  }
+  const system = `You are Anam's warm writing tutor. Create ONE short, fun writing prompt for a rising 6th grader.
+${INTEREST_THEMES}
+Rules:
+- The prompt should invite a ${lines}-line paragraph (about ${lines} sentences).
+- It MUST ask her to use these specific vocabulary words in her writing: ${targets.join(", ")}.
+- Make it playful and in her world (bugs, rocks, gems, plants, a creepy-funny Raina-Telgemeier moment).
+- Keep the prompt itself to 2-3 sentences. Don't write the paragraph for her.
+Return ONLY JSON: {"prompt": "the writing prompt", "targetWords": ["w1","w2","w3"], "lines": ${lines}}`;
+  const txt = await callClaude([{ role:"user", content:"Make today's writing prompt." }], system, 500);
+  try {
+    const p = extractJSON(txt);
+    if (!p.targetWords) p.targetWords = targets;
+    if (!p.lines) p.lines = lines;
+    return p;
+  } catch(e) {
+    return { prompt: `Write ${lines} sentences about a strange rock you found that might be alive. Use these words: ${targets.join(", ")}.`, targetWords: targets, lines };
+  }
+}
+
+/* Review her writing — warm, specific, Socratic on ONE error */
+async function reviewWriting({ text, prompt, targetWords, weakSpots }) {
+  const system = `You are Anam's warm, encouraging writing tutor. She's a rising 6th grader who RUSHES and whose weak spots are dialogue punctuation and pronoun order (${(weakSpots||[]).join(", ")||"punctuation, pronouns"}).
+She wrote a short paragraph. Give feedback in this exact order, short and friendly (age 11):
+1. ONE specific thing she did well.
+2. Did she use the target words (${(targetWords||[]).join(", ")}) correctly? Name each one: ✅ used well, or 💡 used oddly.
+3. Pick the SINGLE most important mechanics issue (punctuation, capital, pronoun order, run-on). Point to it and ask ONE Socratic question to help her fix it — do NOT rewrite it for her.
+4. End with one warm line of encouragement.
+Keep it under ~120 words. Use short lines, not a wall of text.
+Also return a hidden JSON line at the very end (on its own line) like: ###{"targetsUsed":2,"mechanicsIssue":"dialogue punctuation","wordCount":47}`;
+  const user = `Prompt was: ${prompt}\n\nHer paragraph:\n${text}`;
+  const raw = await callClaude([{ role:"user", content:user }], system, 700);
+  // split feedback from hidden json
+  let feedback = raw, meta = {};
+  const idx = raw.lastIndexOf("###");
+  if (idx !== -1) {
+    feedback = raw.slice(0, idx).trim();
+    try { meta = JSON.parse(raw.slice(idx+3).trim()); } catch(e) {}
+  }
+  return { feedback, meta };
+}
+
+/* ---- HELP CHAT ---- */
+/* Socratic help during a session. history = [{role,content}...].
+   Enforces: after 2 off-topic exchanges, redirect to the problem. */
+async function askHelp({ problemContext, subject, history, offTopicCount, solution, answer, choices }) {
+  const redirect = offTopicCount >= 2
+    ? `IMPORTANT: She has gone off-topic for 2+ messages. This time, gently but firmly redirect: acknowledge her question in ONE line, then steer back to the actual problem and help her with IT. Something like "Love that question — let's finish this problem first, then we can chat! 😊"`
+    : `If her message is NOT about the current problem/schoolwork, answer briefly and warmly, then nudge back toward the problem.`;
+  const groundTruth = (solution || answer)
+    ? `\n\nANSWER KEY (hidden from her — use this so you guide her toward the RIGHT method, never the wrong one):
+Correct answer: ${answer || "(see solution)"}
+Solution path: ${solution || "(derive from the correct answer)"}
+${choices && choices.length ? "Choices shown to her: " + choices.join(" | ") : ""}
+Use this to keep your hints pointed at the correct approach. Do NOT reveal the answer or read out the solution — guide her there one step at a time. If she has clearly gone down a wrong path, gently redirect her to the right next step.`
+    : "";
+  const system = `You are Anam's warm, patient tutor (she's 11, loves bugs, rocks, gems). She clicked "I'm stuck" during a ${subject} session.
+The problem she's working on: ${problemContext || "(she's mid-session)"}.
+Help her Socratically — guide her thinking with questions and hints toward the CORRECT method. NEVER just give the final answer; help her get there herself. Never steer her toward a wrong approach.
+Keep replies SHORT (1-3 sentences), friendly, age-appropriate.
+${redirect}${groundTruth}`;
+  const msgs = history.map(h => ({ role: h.role, content: h.content }));
+  return callClaude(msgs, system, 300);
+}
+
+/* Decide if a help message is off-topic (lightweight, local heuristic + model not needed) */
+
+/* ============================================================
+   UI PRIMITIVES
+   ============================================================ */
+const ANSWER_COLORS = [
+  { bg: "linear-gradient(160deg,#3b82f6,#1d4ed8)", solid:"#2563eb" },
+  { bg: "linear-gradient(160deg,#14b8a6,#0d9488)", solid:"#0d9488" },
+  { bg: "linear-gradient(160deg,#f59e0b,#d97706)", solid:"#ea8a0c" },
+  { bg: "linear-gradient(160deg,#ec4899,#be185d)", solid:"#db2777" }
+];
+
+function Spinner({ label }) {
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:16, padding:"40px 0" }}>
+      <div className="spinner" />
+      {label && <div style={{ color:"var(--text-soft)", fontWeight:600 }}>{label}</div>}
+    </div>
+  );
+}
+
+/* ============================================================
+   SETUP SCREEN
+   ============================================================ */
+function Setup({ onStart, profile, saveProfile }) {
+  const [subject, setSubject] = useState("math");
+  const [week, setWeek] = useState(profile.currentWeek || 1);
+  const [mode, setMode] = useState("practice");
+  const [day, setDay] = useState(profile.currentDay || 1);
+  const [editMode, setEditMode] = useState(false); // manual completion editing
+  const [reviewDay, setReviewDay] = useState(null); // {subject, week, day} being reviewed
+
+  const weeks = subject === "math" ? MATH_WEEKS : ENGLISH_WEEKS;
+  const wk = weeks[week];
+  const sessions = profile.sessions || [];
+  const manualDays = profile.manualDays || {};
+  const manualWeeks = profile.manualWeeks || {};
+
+  // a (subject, week, day) practice is "done" if a session matches it OR it's manually marked
+  const dayDone = (s, w, d) => manualDays[`${s}:${w}:${d}`] === true || sessions.some(
+    x => x.subject===s && x.week===w && x.day===d && x.mode==="practice");
+  // a (subject, week) is "complete" when its Test is taken OR manually marked
+  const weekTestDone = (s, w) => manualWeeks[`${s}:${w}`] === true || sessions.some(
+    x => x.subject===s && x.week===w && x.mode==="test");
+  // count practice days done in a week (sessions + manual)
+  const daysDoneInWeek = (s, w) => {
+    const set = new Set(sessions.filter(
+      x => x.subject===s && x.week===w && x.mode==="practice" && x.day).map(x=>x.day));
+    for (let d=1; d<=7; d++) if (manualDays[`${s}:${w}:${d}`]) set.add(d);
+    return set.size;
+  };
+  // is a day's completion from a manual mark (vs a real session)?
+  const dayIsManual = (s, w, d) => manualDays[`${s}:${w}:${d}`] === true && !sessions.some(
+    x => x.subject===s && x.week===w && x.day===d && x.mode==="practice" && !x.backfilled);
+
+  // most recent recorded session (with question records) for a day
+  const sessionForDay = (s, w, d) => {
+    const matches = sessions.filter(x => x.subject===s && x.week===w && x.day===d
+      && x.mode==="practice" && x.records && x.records.length);
+    return matches.length ? matches[matches.length-1] : null;
+  };
+  const hasRecordsForDay = (s, w, d) => !!sessionForDay(s, w, d);
+
+  async function toggleDay(s, w, d) {
+    const key = `${s}:${w}:${d}`;
+    const np = JSON.parse(JSON.stringify(profile));
+    np.manualDays = np.manualDays || {};
+    if (np.manualDays[key]) delete np.manualDays[key];
+    else np.manualDays[key] = true;
+    await saveProfile(np);
+  }
+  async function toggleWeek(s, w) {
+    const key = `${s}:${w}`;
+    const np = JSON.parse(JSON.stringify(profile));
+    np.manualWeeks = np.manualWeeks || {};
+    if (np.manualWeeks[key]) delete np.manualWeeks[key];
+    else np.manualWeeks[key] = true;
+    await saveProfile(np);
+  }
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 18px 60px" }}>
+      <div style={{ textAlign:"center", marginBottom: 28, animation:"slideIn .5s ease" }}>
+        <div className="display" style={{ fontSize: 40, fontWeight: 700, letterSpacing:"-0.5px",
+          background:"linear-gradient(90deg,#f59e0b,#ec4899,#14b8a6)", WebkitBackgroundClip:"text",
+          WebkitTextFillColor:"transparent", backgroundClip:"text" }}>
+          Anam's Learning Lab
+        </div>
+        <div style={{ color:"var(--text-dim)", marginTop:6, fontWeight:600 }}>
+          Built for a rock-collecting, bug-loving rising 6th grader 🪨🐛
+        </div>
+      </div>
+
+      {/* Subject */}
+      <Section label="Subject">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          <BigToggle active={subject==="math"} onClick={()=>{setSubject("math");setWeek(profile.currentWeek||1);}}
+            color="#3b82f6" emoji="🔢" title="Math" sub="Word problems that hide the operation" />
+          <BigToggle active={subject==="english"} onClick={()=>{setSubject("english");setWeek(profile.currentWeek||1);}}
+            color="#ec4899" emoji="📖" title="English" sub="Reading, vocab & mechanics" />
+        </div>
+      </Section>
+
+      {/* Progress overview strip */}
+      {(sessions.length > 0 || Object.keys(manualDays).length > 0 || Object.keys(manualWeeks).length > 0) && (
+        <div style={{ marginBottom:22, padding:"14px 16px", background:"var(--bg-card)",
+          borderRadius:14, border:"1px solid var(--border)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+            <div style={{ fontSize:12, fontWeight:800, letterSpacing:"1px", textTransform:"uppercase",
+              color:"var(--text-dim)" }}>Progress so far</div>
+            <button onClick={()=>setEditMode(m=>!m)}
+              style={{ padding:"5px 12px", borderRadius:8, fontWeight:800, fontSize:12,
+                background: editMode ? "linear-gradient(160deg,#7c3aed,#5b21b6)" : "var(--bg-deep)",
+                color: editMode ? "#fff" : "var(--text-soft)", border:"1px solid var(--border)" }}>
+              {editMode ? "✓ Done editing" : "✏️ Edit progress"}
+            </button>
+          </div>
+          {editMode && (
+            <div style={{ marginBottom:12, padding:"10px 12px", background:"var(--bg-deep)", borderRadius:10,
+              fontSize:13, color:"var(--text-soft)", lineHeight:1.5 }}>
+              Tap any <b>day</b> or <b>week</b> button below to mark it done or undone by hand.
+              Auto-tracked sessions stay checked on their own — this is just for filling in work the app didn't record.
+            </div>
+          )}
+          {["math","english"].map(s => (
+            <div key={s} style={{ display:"flex", alignItems:"center", gap:8, marginBottom: s==="math"?8:0 }}>
+              <span style={{ width:64, fontSize:13.5, fontWeight:700,
+                color: s==="math"?"#93c5fd":"#f9a8d4" }}>{s==="math"?"🔢 Math":"📖 English"}</span>
+              <div style={{ display:"flex", gap:4, flex:1 }}>
+                {[1,2,3,4,5,6,7,8].map(w => {
+                  const complete = weekTestDone(s, w);
+                  const partial = !complete && daysDoneInWeek(s, w) > 0;
+                  return (
+                    <div key={w} title={`Week ${w}`} style={{ flex:1, height:18, borderRadius:5,
+                      display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800,
+                      background: complete ? "linear-gradient(160deg,#16a34a,#15803d)"
+                        : partial ? "rgba(251,191,36,0.25)" : "var(--bg-deep)",
+                      color: complete ? "#fff" : partial ? "#fbbf24" : "var(--text-dim)",
+                      border: partial ? "1px solid #fbbf2455" : "1px solid transparent" }}>
+                      {complete ? "✓" : w}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <div style={{ marginTop:10, fontSize:12, color:"var(--text-dim)", display:"flex", gap:14, flexWrap:"wrap" }}>
+            <span><span style={{ color:"#22c55e" }}>■</span> week complete</span>
+            <span><span style={{ color:"#fbbf24" }}>■</span> in progress</span>
+            {(profile.helpTotal>0) && <span>· {profile.helpTotal} help asks total</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Week */}
+      <Section label="Week of the 8-week plan">
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+          {Object.keys(weeks).map(w => {
+            const wn = Number(w);
+            const complete = weekTestDone(subject, wn);
+            const partial = !complete && daysDoneInWeek(subject, wn) > 0;
+            return (
+              <button key={w} onClick={()=> editMode ? toggleWeek(subject, wn) : setWeek(wn)}
+                style={{
+                  position:"relative",
+                  padding:"10px 16px", borderRadius:12, fontWeight:700, fontSize:15,
+                  background: editMode
+                    ? (complete ? "linear-gradient(160deg,#15803d,#166534)" : "var(--bg-deep)")
+                    : (wn===week ? "linear-gradient(160deg,#7c3aed,#5b21b6)"
+                      : complete ? "linear-gradient(160deg,#15803d,#166534)" : "var(--bg-card)"),
+                  color: (wn===week||complete) ? "#fff" : "var(--text-soft)",
+                  border: editMode ? "2px dashed "+(complete?"#4ade80":"#a78bfa66")
+                    : wn===week ? "2px solid #a78bfa"
+                    : complete ? "2px solid #4ade80" : "2px solid transparent",
+                  transition:"all .15s"
+                }}>
+                {w}{complete ? " ✓" : ""}
+                {partial && !editMode && <span style={{ position:"absolute", top:3, right:5, width:6, height:6,
+                  borderRadius:"50%", background:"#fbbf24" }} />}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ marginTop:14, padding:"14px 16px", background:"var(--bg-card)", borderRadius:14, border:"1px solid var(--border)" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+            <div className="display" style={{ fontWeight:600, fontSize:18, color:"#fcd34d" }}>{wk.title}</div>
+            {weekTestDone(subject, week)
+              ? <span style={{ fontSize:12.5, fontWeight:800, color:"#86efac" }}>WEEK COMPLETE ✓</span>
+              : <span style={{ fontSize:12.5, fontWeight:800, color:"var(--text-dim)" }}>
+                  {daysDoneInWeek(subject, week)}/7 days</span>}
+          </div>
+          <div style={{ color:"var(--text-soft)", fontSize:14.5, marginTop:5, lineHeight:1.5 }}>{wk.focus}</div>
+          {subject==="english" && <div style={{ marginTop:8, fontSize:13, color:"var(--text-dim)", fontWeight:700 }}>
+            Target reading level: {LEXILE_BY_WEEK[week]}L · ~{passageLines(week,day)} line passages today</div>}
+        </div>
+      </Section>
+
+      {(mode==="practice" || editMode) && (
+        <Section label={editMode
+          ? "Day of the week (tap to mark done / undone)"
+          : subject==="english"
+          ? "Day of the week (more questions + longer passages each day)"
+          : "Day of the week (more practice each day)"}>
+          <div style={{ display:"flex", gap:8 }}>
+            {[1,2,3,4,5,6,7].map(d => {
+              const done = dayDone(subject, week, d);
+              const manual = dayIsManual(subject, week, d);
+              return (
+                <button key={d} onClick={()=> editMode ? toggleDay(subject, week, d) : setDay(d)}
+                  style={{ flex:1, padding:"10px 0", borderRadius:10, fontWeight:700, position:"relative",
+                    background: editMode
+                      ? (done ? "linear-gradient(160deg,#15803d,#166534)" : "var(--bg-deep)")
+                      : (d===day ? "linear-gradient(160deg,#14b8a6,#0d9488)"
+                        : done ? "linear-gradient(160deg,#15803d,#166534)" : "var(--bg-card)"),
+                    color: (d===day||done) ? "#fff":"var(--text-soft)",
+                    border: editMode ? "2px dashed "+(done?"#4ade80":"#5eead466")
+                      : "2px solid "+(d===day?"#5eead4": done?"#4ade80":"transparent") }}>
+                  {d}
+                  {done && (editMode || d!==day) && <span style={{ position:"absolute", top:2, right:4,
+                    fontSize:10, color:"#bbf7d0" }}>{manual ? "✎" : "✓"}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ marginTop:8, fontSize:13, color:"var(--text-dim)", fontWeight:700 }}>
+            Day {day}: {practiceCount(day)} questions{subject==="english" ? ` · ~${passageLines(week,day)} line passages` : ""}
+            {dayDone(subject, week, day) ? " · completed ✓" : ""}
+          </div>
+          {hasRecordsForDay(subject, week, day) && !editMode && (
+            <button onClick={()=>setReviewDay({ subject, week, day })}
+              style={{ marginTop:10, width:"100%", padding:"11px", borderRadius:10,
+                background:"var(--bg-deep)", color:"#93c5fd", fontWeight:700, fontSize:14,
+                border:"1px solid var(--border)" }}>
+              👁 View the questions she did on Day {day}
+            </button>
+          )}
+        </Section>
+      )}
+
+      {/* Mode */}
+      <Section label="Session type">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {Object.entries(MODES).map(([k,m]) => {
+            const isTest = k === "test";
+            const testDone = isTest && (profile.sessions||[]).some(
+              s => s.subject===subject && s.week===week && s.mode==="test");
+            return (
+              <button key={k} onClick={()=>setMode(k)}
+                style={{
+                  padding:"16px 12px", borderRadius:16, textAlign:"center", position:"relative",
+                  background: k===mode ? "linear-gradient(160deg,#f59e0b,#d97706)" : "var(--bg-card)",
+                  border: "2px solid "+(k===mode ? "#fcd34d" : "transparent"),
+                  color: k===mode ? "#fff" : "var(--text-soft)", transition:"all .15s"
+                }}>
+                <div style={{ fontSize:26 }}>{m.icon}</div>
+                <div className="display" style={{ fontWeight:600, fontSize:18, marginTop:4 }}>{m.label}</div>
+                <div style={{ fontSize:12.5, opacity:0.85, marginTop:2 }}>
+                  {isTest
+                    ? `${MODES.test.count} questions · once a week`
+                    : `${practiceCount(day)} questions · daily`}
+                </div>
+                {testDone && <div style={{ marginTop:6, fontSize:11.5, fontWeight:800, color:"#86efac" }}>
+                  ✓ taken this week</div>}
+              </button>
+            );
+          })}
+        </div>
+        {mode==="test" && (
+          <div style={{ marginTop:12, padding:"12px 14px", background:"var(--bg-card)", borderRadius:12,
+            border:"1px solid var(--border)", fontSize:13.5, color:"var(--text-soft)", lineHeight:1.5 }}>
+            The Weekly Test is the once-a-week checkpoint for Week {week} {subject==="math"?"Math":"English"} —
+            it pulls from everything this week, weighted toward her weak spots, and the results feed the Parent Review.
+          </div>
+        )}
+      </Section>
+
+      <button onClick={()=>onStart({ subject, week, mode, day })}
+        style={{
+          width:"100%", marginTop:26, padding:"18px", borderRadius:18,
+          background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff",
+          fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:22, letterSpacing:"0.3px",
+          boxShadow:"0 8px 24px rgba(34,197,94,0.35)"
+        }}>
+        Start session →
+      </button>
+
+      {subject==="english" && (
+        <button onClick={()=>onStart({ subject:"writing", week, mode, day })}
+          style={{ width:"100%", marginTop:12, padding:"15px", borderRadius:16,
+            background:"linear-gradient(90deg,#0d9488,#14b8a6)", color:"#fff",
+            fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18 }}>
+          ✍️ Writing prompt
+          {(() => {
+            const done = (profile.writingThisWeek && profile.writingThisWeek[week]) || 0;
+            return <span style={{ marginLeft:8, fontSize:13.5, opacity:0.9 }}>
+              {done}/2 this week {done>=2 ? "✓":""}</span>;
+          })()}
+        </button>
+      )}
+
+      <div style={{ display:"flex", gap:10, marginTop:14 }}>
+        <button onClick={()=>onStart({ subject:"work", week, mode, day })}
+          style={ghostBtn}>📸 Upload my Supernote work</button>
+        <button onClick={()=>onStart({ subject:"review", week, mode, day })}
+          style={ghostBtn}>📊 Parent review</button>
+      </div>
+
+      {/* Past-day question review modal */}
+      {reviewDay && (() => {
+        const sess = sessionForDay(reviewDay.subject, reviewDay.week, reviewDay.day);
+        const recs = sess ? sess.records : [];
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(15,6,32,0.92)", zIndex:60,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}
+            onClick={()=>setReviewDay(null)}>
+            <div onClick={e=>e.stopPropagation()} style={{ maxWidth:680, width:"100%", maxHeight:"86vh",
+              overflowY:"auto", background:"var(--bg-card)", borderRadius:20, border:"1px solid var(--border)",
+              padding:"22px 24px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                <div className="display" style={{ fontSize:20, fontWeight:600, color:"#fcd34d" }}>
+                  {reviewDay.subject==="math"?"🔢 Math":"📖 English"} · Week {reviewDay.week}, Day {reviewDay.day}
+                </div>
+                <button onClick={()=>setReviewDay(null)} style={{ background:"var(--bg-deep)", color:"#fff",
+                  borderRadius:8, padding:"5px 12px", fontWeight:700, fontSize:13 }}>Close</button>
+              </div>
+              <div style={{ fontSize:13.5, color:"var(--text-dim)", marginBottom:16 }}>
+                {sess ? `Scored ${sess.score}/${sess.total} · ${new Date(sess.date).toLocaleDateString()}` : ""}
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                {recs.map((r,i)=>(
+                  <div key={i} style={{ background:"var(--bg-deep)", borderRadius:14, padding:"14px 16px",
+                    border:"1px solid var(--border)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", gap:10, marginBottom:6 }}>
+                      <span style={{ fontSize:12, fontWeight:800, color:"var(--text-dim)" }}>
+                        Q{i+1} · Level {r.level||1}{r.skill ? " · "+r.skill : ""}
+                      </span>
+                      <span style={{ fontSize:12, fontWeight:800,
+                        color: r.correct ? "#86efac":"#fca5a5" }}>{r.correct ? "✓":"✗"}</span>
+                    </div>
+                    <div style={{ fontSize:15.5, lineHeight:1.45, marginBottom:8 }}>{r.question}</div>
+                    <div style={{ fontSize:14, color: r.correct ? "#86efac":"#fca5a5" }}>
+                      Her answer: {String(r.given)}
+                    </div>
+                    {!r.correct && <div style={{ fontSize:14, color:"#86efac", marginTop:2 }}>
+                      Correct: {String(r.expected)}</div>}
+                  </div>
+                ))}
+                {!recs.length && <div style={{ color:"var(--text-soft)" }}>
+                  No saved questions for this day yet.</div>}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+const ghostBtn = {
+  flex:1, padding:"13px", borderRadius:14, background:"var(--bg-card)",
+  color:"var(--text-soft)", fontWeight:700, fontSize:14.5, border:"1px solid var(--border)"
+};
+
+function Section({ label, children }) {
+  return (
+    <div style={{ marginBottom:22, animation:"slideIn .5s ease" }}>
+      <div style={{ fontSize:13, fontWeight:800, letterSpacing:"1px", textTransform:"uppercase",
+        color:"var(--text-dim)", marginBottom:10 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function BigToggle({ active, onClick, color, emoji, title, sub }) {
+  return (
+    <button onClick={onClick}
+      style={{
+        padding:"18px 16px", borderRadius:16, textAlign:"left",
+        background: active ? `linear-gradient(160deg,${color},${color}cc)` : "var(--bg-card)",
+        border:"2px solid "+(active?"#fff8":"transparent"),
+        color: active ? "#fff":"var(--text-soft)", transition:"all .15s"
+      }}>
+      <div style={{ fontSize:30 }}>{emoji}</div>
+      <div className="display" style={{ fontWeight:600, fontSize:20, marginTop:4 }}>{title}</div>
+      <div style={{ fontSize:13, opacity:0.85, marginTop:2, lineHeight:1.35 }}>{sub}</div>
+    </button>
+  );
+}
+
+/* ============================================================
+   QUIZ SCREEN
+   ============================================================ */
+function Quiz({ config, profile, saveProfile, onDone, onExit, resumeData }) {
+  const [questions, setQuestions] = useState(resumeData ? resumeData.questions : null);
+  const [loading, setLoading] = useState(resumeData ? false : true);
+  const [error, setError] = useState(null);
+  const [idx, setIdx] = useState(resumeData ? resumeData.idx : 0);
+  const [selected, setSelected] = useState(null);
+  const [fillValue, setFillValue] = useState("");
+  const [feedback, setFeedback] = useState(null); // {correct, hint, expected}
+  const [checking, setChecking] = useState(false);
+  const [explainPrompt, setExplainPrompt] = useState(null);
+  const [explainValue, setExplainValue] = useState("");
+  const [confirmStep, setConfirmStep] = useState(false); // "read it back" gate
+  const [viewPrev, setViewPrev] = useState(null);     // index being reviewed via Back (read-only)
+
+  // session-level adaptive state (restored from resumeData if resuming)
+  const streak = useRef(resumeData ? (resumeData.streak||0) : 0);
+  const curLevel = useRef(resumeData ? (resumeData.curLevel||1) : 1);
+  const results = useRef(resumeData ? (resumeData.results||[]) : []);
+  const sessionWeak = useRef(resumeData ? (resumeData.sessionWeak||[]) : []);
+  const bumpedFlash = useRef(false);
+  const helpCount = useRef(resumeData ? (resumeData.helpCount||0) : 0);
+  const neededHelp = useRef(false);
+  const neededHelpSkills = useRef(resumeData ? (resumeData.neededHelpSkills||[]) : []);
+
+  // help chat box
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpMsgs, setHelpMsgs] = useState([]);  // {role, content}
+  const [helpInput, setHelpInput] = useState("");
+  const [helpBusy, setHelpBusy] = useState(false);
+  const offTopic = useRef(0);
+
+  const subj = config.subject;
+  const wkMeta = subj==="math" ? MATH_WEEKS[config.week] : ENGLISH_WEEKS[config.week];
+
+  useEffect(() => {
+    if (resumeData) return; // already have questions; don't regenerate
+    let alive = true;
+    (async () => {
+      try {
+        setLoading(true);
+        const qs = await generateQuestions({
+          subject: subj, week: config.week, mode: config.mode,
+          level: curLevel.current, lexile: LEXILE_BY_WEEK[config.week], day: config.day,
+          weakSpots: profile.weakSpots[subj] || [],
+          retentionQueue: (profile.retentionQueue[subj]||[]).slice(0,3)
+        });
+        if (!alive) return;
+        if (!qs || !qs.length) throw new Error("No questions generated");
+        setQuestions(qs);
+        setLoading(false);
+      } catch(e) {
+        if (alive) { setError(e.message); setLoading(false); }
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const q = questions ? questions[idx] : null;
+
+  // Recheck gate fires ONLY on decimal-place answers — the narrow spot
+  // where her real error lives (e.g. writing 1.5 instead of 1.05).
+  // Removed from grammar/punctuation/everything else to keep her flow.
+  function isPrecisionQuestion(q) {
+    if (!q) return false;
+    // Only on hard problems (level 4-5), where a careful re-check matters most.
+    if ((q.level || 1) < 4) return false;
+    const ans = String(q.answer || "");
+    const skill = String(q.skill || "").toLowerCase();
+    const hasDecimal = /\d\.\d/.test(ans);
+    const mechanic = /(punctuat|comma|capital|quotation|dialogue|pronoun|apostrophe)/.test(skill);
+    return hasDecimal || mechanic;
+  }
+
+  async function submit() {
+    if (feedback) return;
+    // Read-it-back gate: on precision questions, pause once before grading.
+    if (!confirmStep && isPrecisionQuestion(q)) {
+      setConfirmStep(true);
+      return;
+    }
+    setChecking(true);
+    try {
+    const given = q.type === "mc" ? selected : fillValue.trim();
+    let correct;
+    if (q.type === "mc") {
+      correct = String(given).trim() === String(q.answer).trim();
+    } else {
+      const skill = String(q.skill||"").toLowerCase();
+      const isGrammar = /(punctuat|comma|capital|quotation|dialogue|pronoun|apostrophe|grammar|sentence)/.test(skill);
+      if (isGrammar) {
+        // punctuation/capitalization IS the answer — don't strip it; let the AI grader judge exactly
+        const exact = given.replace(/\s+/g," ").trim() === String(q.answer).replace(/\s+/g," ").trim();
+        if (exact) correct = true;
+        else {
+          const r = await checkAnswer({ subject:subj, question:q.question, expected:q.answer, given, isGrammar:true });
+          correct = r.correct;
+        }
+      } else {
+        // numeric/other: try a normalized match first, then AI grader
+        const norm = s => String(s).toLowerCase().replace(/[\s$,]/g,"").replace(/[^a-z0-9.\/-]/g,"");
+        if (norm(given) === norm(q.answer)) correct = true;
+        else {
+          const r = await checkAnswer({ subject:subj, question:q.question, expected:q.answer, given });
+          correct = r.correct;
+        }
+      }
+    }
+
+    // record
+    results.current.push({
+      skill: q.skill, level: q.level, type: q.type, correct,
+      retention: !!q.retention, connection: !!q.connection,
+      neededHelp: neededHelp.current, hasDistractor: !!q.hasDistractor,
+      question: q.question, given, expected: q.answer
+    });
+    // "needed help but got it right" = lighter weak-spot signal
+    if (neededHelp.current && correct && q.skill && !neededHelpSkills.current.includes(q.skill)) {
+      neededHelpSkills.current.push(q.skill);
+    }
+
+    if (correct) {
+      streak.current += 1;
+      let bumped = false;
+      if (streak.current >= 2 && curLevel.current < 5) {
+        curLevel.current += 1; streak.current = 0; bumped = true;
+      }
+      bumpedFlash.current = bumped;
+      setFeedback({ correct:true, bumped });
+      // ask her to explain (lucky-guess catch) on fills + higher levels
+      if (q.type==="fill" || q.level>=3) {
+        setExplainPrompt(EXPLAIN_PROMPTS[Math.floor(Math.random()*EXPLAIN_PROMPTS.length)]);
+      }
+    } else {
+      streak.current = 0;
+      // flag weak spot — especially if she'd just been bumped up
+      if (q.skill && !sessionWeak.current.includes(q.skill)) sessionWeak.current.push(q.skill);
+      let hint = "";
+      try { hint = await getHint({ subject:subj, question:q.question, given, expected:q.answer,
+        hasDistractor: q.hasDistractor, distractorNote: q.distractorNote }); }
+      catch(e) { hint = "Take another look — walk through it one step at a time."; }
+      setFeedback({ correct:false, hint, expected:q.answer });
+    }
+    } catch(e) {
+      // last-resort safety net: never leave the button hanging
+      setFeedback({ correct:false, hint:"Let's move on — take another look at this one later.", expected:q.answer });
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  function next() {
+    setFeedback(null); setSelected(null); setFillValue("");
+    setExplainPrompt(null); setExplainValue(""); setConfirmStep(false);
+    neededHelp.current = false;
+    setHelpOpen(false); setHelpMsgs([]); setHelpInput(""); offTopic.current = 0;
+    if (idx + 1 >= questions.length) {
+      finish();
+    } else {
+      const nextIdx = idx + 1;
+      // persist progress so a freeze/refresh can resume here
+      Store.set("activeSession", {
+        config, questions,
+        idx: nextIdx,
+        results: results.current,
+        curLevel: curLevel.current,
+        streak: streak.current,
+        helpCount: helpCount.current,
+        sessionWeak: sessionWeak.current,
+        neededHelpSkills: neededHelpSkills.current,
+        savedAt: new Date().toISOString()
+      });
+      setIdx(nextIdx);
+    }
+  }
+
+  async function sendHelp() {
+    const text = helpInput.trim();
+    if (!text || helpBusy) return;
+    helpCount.current += 1;
+    neededHelp.current = true;
+    const newMsgs = [...helpMsgs, { role:"user", content:text }];
+    setHelpMsgs(newMsgs);
+    setHelpInput("");
+    setHelpBusy(true);
+    // crude off-topic detection: does the message mention anything math/reading-ish?
+    const onTopicHint = /\b(answer|problem|question|number|divide|multiply|add|subtract|decimal|fraction|word|sentence|comma|read|passage|how|why|what|solve|step|mean|equal)\b/i.test(text);
+    if (!onTopicHint) offTopic.current += 1; else offTopic.current = 0;
+    try {
+      const reply = await askHelp({
+        problemContext: q ? (q.passage ? q.passage + "\n\n" + q.question : q.question) : "",
+        subject: subj,
+        history: newMsgs,
+        offTopicCount: offTopic.current,
+        solution: q ? q.solution : "",
+        answer: q ? q.answer : "",
+        choices: q ? q.choices : null
+      });
+      setHelpMsgs(m => [...m, { role:"assistant", content: reply }]);
+    } catch(e) {
+      setHelpMsgs(m => [...m, { role:"assistant", content: "Hmm, I couldn't think just now — try asking again in a sec!" }]);
+    }
+    setHelpBusy(false);
+  }
+
+  async function finish() {
+    const res = results.current;
+    const correctCount = res.filter(r=>r.correct).length;
+    const session = {
+      date: new Date().toISOString(),
+      subject: subj, week: config.week, day: config.day, mode: config.mode,
+      score: correctCount, total: res.length,
+      maxLevel: Math.max(...res.map(r=>r.level), 1),
+      weakSkills: sessionWeak.current,
+      neededHelpSkills: neededHelpSkills.current,
+      helpRequests: helpCount.current,
+      retentionResults: res.filter(r=>r.retention).map(r=>({skill:r.skill, correct:r.correct})),
+      records: res
+    };
+    // update profile
+    const np = JSON.parse(JSON.stringify(profile));
+    np.sessions = np.sessions || [];
+    np.sessions.push(session);
+    // merge weak spots
+    np.weakSpots[subj] = Array.from(new Set([...(np.weakSpots[subj]||[]), ...sessionWeak.current])).slice(-12);
+    // retention queue: skills she got right go in (to recheck next time); ones she missed on retention stay
+    const learned = res.filter(r=>r.correct && r.level>=2).map(r=>r.skill);
+    np.retentionQueue[subj] = Array.from(new Set([...(np.retentionQueue[subj]||[]), ...learned])).slice(-15);
+    // if she passed retention checks, remove from queue
+    res.filter(r=>r.retention && r.correct).forEach(r=>{
+      np.retentionQueue[subj] = (np.retentionQueue[subj]||[]).filter(s=>s!==r.skill);
+      np.mastered[subj] = Array.from(new Set([...(np.mastered[subj]||[]), r.skill]));
+    });
+    np.currentWeek = config.week;
+    np.currentDay = config.day;
+    // lifetime help counter
+    np.helpTotal = (np.helpTotal || 0) + helpCount.current;
+    // collect practiced vocabulary/skills for writing prompts (English skills become word fodder)
+    if (subj === "english") {
+      const skills = res.map(r=>r.skill).filter(Boolean);
+      np.practicedWords = Array.from(new Set([...(np.practicedWords||[]), ...skills])).slice(-30);
+    }
+    await saveProfile(np);
+    await Store.set("activeSession", null);  // session complete — clear resume state
+    onDone(session, np);
+  }
+
+  if (loading) return <CenterWrap onExit={onExit}>
+    <Spinner label={`Building ${subj==="math"?"math":"reading"} questions in Anam's world…`} />
+  </CenterWrap>;
+
+  if (error) return <CenterWrap onExit={onExit}>
+    <ErrorBox error={error} />
+    <button onClick={async ()=>{
+      setError(null); setLoading(true);
+      try {
+        const qs = await generateQuestions({
+          subject: subj, week: config.week, mode: config.mode,
+          level: curLevel.current, lexile: LEXILE_BY_WEEK[config.week], day: config.day,
+          weakSpots: profile.weakSpots[subj] || [],
+          retentionQueue: (profile.retentionQueue[subj]||[]).slice(0,3)
+        });
+        if (!qs || !qs.length) throw new Error("Could not generate questions. Please try again.");
+        setQuestions(qs); setLoading(false);
+      } catch(e) { setError(e.message); setLoading(false); }
+    }}
+      style={{ width:"100%", marginTop:16, padding:"15px", borderRadius:14,
+        background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff",
+        fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18 }}>
+      🔄 Try again
+    </button>
+  </CenterWrap>;
+
+  const accent = ANSWER_COLORS[idx % 4].solid;
+
+  return (
+    <div style={{ maxWidth: 760, margin:"0 auto", padding:"16px 16px 50px" }}>
+      {/* top bar */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
+        <button onClick={onExit} style={{ background:"var(--bg-card)", color:"var(--text-soft)",
+          padding:"8px 14px", borderRadius:10, fontWeight:700, fontSize:14 }}>← Exit</button>
+        {idx >= 1 && results.current.length >= idx && (
+          <button onClick={()=>setViewPrev(idx-1)}
+            style={{ background:"var(--bg-card)", color:"#fcd34d",
+              padding:"8px 12px", borderRadius:10, fontWeight:700, fontSize:13.5 }}
+            title="Review the previous question">⬑ Previous</button>
+        )}
+        <div style={{ flex:1, height:12, background:"var(--bg-card)", borderRadius:8, overflow:"hidden" }}>
+          <div style={{ width:`${(idx/(questions.length))*100}%`, height:"100%",
+            background:"linear-gradient(90deg,#14b8a6,#f59e0b)", transition:"width .4s" }} />
+        </div>
+        <div style={{ background:"#0008", padding:"6px 14px", borderRadius:20, fontWeight:800,
+          fontSize:15, color:"#fcd34d" }}>{idx+1}/{questions.length}</div>
+      </div>
+
+      {/* read-only review of a previous question */}
+      {viewPrev !== null && results.current[viewPrev] && (() => {
+        const r = results.current[viewPrev];
+        const pq = questions[viewPrev];
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(15,6,32,0.92)", zIndex:50,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:"20px",
+            animation:"slideIn .2s ease" }} onClick={()=>setViewPrev(null)}>
+            <div onClick={e=>e.stopPropagation()} style={{ maxWidth:620, width:"100%", maxHeight:"85vh",
+              overflowY:"auto", background:"var(--bg-card)", borderRadius:20, border:"1px solid var(--border)",
+              padding:"22px 24px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                <div className="display" style={{ fontSize:18, fontWeight:600, color:"#fcd34d" }}>
+                  Question {viewPrev+1} (review)
+                </div>
+                <span style={{ fontSize:13, fontWeight:800, padding:"4px 10px", borderRadius:8,
+                  background: r.correct ? "#16a34a" : "#9a3412", color:"#fff" }}>
+                  {r.correct ? "✓ correct" : "✗ missed"}
+                </span>
+              </div>
+              {pq && pq.passage && (
+                <div style={{ background:"var(--bg-deep)", borderRadius:12, padding:"12px 14px",
+                  marginBottom:12, fontSize:14.5, lineHeight:1.6, color:"var(--text-soft)" }}>{pq.passage}</div>
+              )}
+              <div style={{ fontSize:17, fontWeight:600, marginBottom:14, lineHeight:1.4 }}>{r.question}</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ padding:"12px 14px", borderRadius:10, background:"var(--bg-deep)",
+                  border:"1px solid var(--border)" }}>
+                  <span style={{ fontSize:12.5, fontWeight:800, color:"var(--text-dim)" }}>HER ANSWER</span>
+                  <div style={{ fontSize:16, marginTop:3, color: r.correct ? "#86efac":"#fca5a5" }}>{String(r.given)}</div>
+                </div>
+                {!r.correct && (
+                  <div style={{ padding:"12px 14px", borderRadius:10, background:"var(--bg-deep)",
+                    border:"1px solid var(--border)" }}>
+                    <span style={{ fontSize:12.5, fontWeight:800, color:"var(--text-dim)" }}>CORRECT ANSWER</span>
+                    <div style={{ fontSize:16, marginTop:3, color:"#86efac" }}>{String(r.expected)}</div>
+                  </div>
+                )}
+              </div>
+              <button onClick={()=>setViewPrev(null)}
+                style={{ width:"100%", marginTop:18, padding:"14px", borderRadius:12,
+                  background:"linear-gradient(90deg,#7c3aed,#a855f7)", color:"#fff",
+                  fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:17 }}>
+                Back to current question →
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* level indicator — visible climb */}
+      <div style={{ display:"flex", justifyContent:"center", gap:6, marginBottom:16 }}>
+        {[1,2,3,4,5].map(l => (
+          <div key={l} style={{ width:34, height:7, borderRadius:4,
+            background: l <= curLevel.current ? "linear-gradient(90deg,#f59e0b,#ec4899)" : "var(--bg-card)" }} />
+        ))}
+        <span style={{ marginLeft:8, fontSize:13, fontWeight:800, color:"var(--text-dim)" }}>
+          LEVEL {curLevel.current}
+        </span>
+      </div>
+
+      {/* passage (English) */}
+      {q.passage && (
+        <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:16,
+          padding:"16px 18px", marginBottom:14, lineHeight:1.65, fontSize:16, color:"var(--text)",
+          animation:"pop .3s ease" }}>
+          {q.connection && <div style={{ fontSize:12, fontWeight:800, color:"#5eead4", marginBottom:6,
+            textTransform:"uppercase", letterSpacing:"1px" }}>🔗 Connect the passages</div>}
+          {q.passage}
+        </div>
+      )}
+
+      {/* question card */}
+      <div className="display" style={{ background:"linear-gradient(160deg,var(--bg-card-soft),var(--bg-card))",
+        border:"1px solid var(--border)", borderRadius:20, padding:"26px 24px", marginBottom:18,
+        fontSize:21, fontWeight:500, lineHeight:1.4, textAlign:"center", minHeight:90,
+        display:"flex", alignItems:"center", justifyContent:"center",
+        animation: feedback && !feedback.correct ? "shake .4s" : "pop .3s ease" }}>
+        {q.question}
+      </div>
+
+      {/* answers */}
+      {q.type === "mc" ? (
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {q.choices.map((c, i) => {
+            const isSel = selected === c;
+            const isAns = feedback && String(c).trim()===String(q.answer).trim();
+            const wrongSel = feedback && isSel && !feedback.correct;
+            return (
+              <button key={i} disabled={!!feedback}
+                onClick={()=>!feedback && setSelected(c)}
+                style={{
+                  padding:"22px 16px", borderRadius:16, minHeight:84,
+                  fontSize:18, fontWeight:700, color:"#fff",
+                  background: ANSWER_COLORS[i].bg,
+                  border: isSel ? "3px solid #fff" : "3px solid transparent",
+                  opacity: feedback ? (isAns ? 1 : (wrongSel?1:0.45)) : 1,
+                  boxShadow: isAns ? "0 0 0 3px #22c55e, 0 6px 20px #22c55e66" :
+                    wrongSel ? "0 0 0 3px #ef4444" : "0 4px 14px #0004",
+                  transform: isSel && !feedback ? "scale(1.02)":"scale(1)",
+                  transition:"all .15s"
+                }}>
+                {c}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div>
+          <input value={fillValue} disabled={!!feedback}
+            onChange={e=>setFillValue(e.target.value)}
+            onKeyDown={e=>{ if(e.key==="Enter" && !feedback && (fillValue.trim())) submit(); }}
+            placeholder="Type your answer…"
+            style={{
+              width:"100%", padding:"20px 22px", borderRadius:16, fontSize:20, fontWeight:700,
+              background:"var(--bg-card)", color:"#fff", textAlign:"center",
+              border:"3px solid "+(feedback ? (feedback.correct?"#22c55e":"#ef4444") : "var(--border)"),
+              outline:"none"
+            }} />
+        </div>
+      )}
+
+      {/* feedback */}
+      {feedback && (
+        <div style={{ marginTop:18, animation:"slideIn .3s ease" }}>
+          {feedback.correct ? (
+            <div style={{ background:"linear-gradient(160deg,#16a34a,#15803d)", borderRadius:16,
+              padding:"16px 20px", textAlign:"center" }}>
+              <div className="display" style={{ fontSize:22, fontWeight:600 }}>
+                {feedback.bumped ? "🔥 Correct — leveling you UP!" : "✓ Correct!"}
+              </div>
+              {feedback.bumped && <div style={{ fontSize:14, marginTop:4, color:"#dcfce7" }}>
+                Two in a row — the questions just got harder. Let's find your edge.</div>}
+            </div>
+          ) : (
+            <div style={{ background:"linear-gradient(160deg,#7c2d12,#9a3412)", borderRadius:16,
+              padding:"16px 20px" }}>
+              <div className="display" style={{ fontSize:17, fontWeight:600, color:"#fed7aa" }}>
+                Not quite — let's think it through 🤔
+              </div>
+              <div style={{ marginTop:8, fontSize:16, lineHeight:1.5, color:"#fff" }}>{feedback.hint}</div>
+            </div>
+          )}
+
+          {/* explain-your-thinking (lucky guess catch) */}
+          {explainPrompt && (
+            <div style={{ marginTop:12, background:"var(--bg-card)", borderRadius:14, padding:"14px 16px",
+              border:"1px solid var(--border)" }}>
+              <div style={{ fontWeight:700, color:"var(--text-soft)", marginBottom:8 }}>{explainPrompt}</div>
+              <input value={explainValue} onChange={e=>setExplainValue(e.target.value)}
+                placeholder="(optional) one quick line…"
+                style={{ width:"100%", padding:"12px 14px", borderRadius:10, background:"var(--bg-deep)",
+                  color:"#fff", border:"1px solid var(--border)", outline:"none", fontSize:15 }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* read-it-back gate */}
+      {confirmStep && !feedback && (
+        <div style={{ marginTop:18, background:"linear-gradient(160deg,#1e3a8a,#1d4ed8)", borderRadius:16,
+          padding:"16px 20px", animation:"slideIn .25s ease" }}>
+          <div className="display" style={{ fontSize:18, fontWeight:600, color:"#dbeafe" }}>
+            👀 Quick check before you submit
+          </div>
+          <div style={{ marginTop:6, fontSize:15, lineHeight:1.5, color:"#fff" }}>
+            Look at your decimal point — is it in exactly the right spot? (Easy to drop a zero!) Fix it above if you need to, then submit.
+          </div>
+        </div>
+      )}
+
+      {/* action */}
+      <div style={{ marginTop:20 }}>
+        {!feedback ? (
+          confirmStep ? (
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setConfirmStep(false)}
+                style={{ flex:1, padding:"16px", borderRadius:16, background:"var(--bg-card)",
+                  color:"var(--text-soft)", fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18 }}>
+                ✏️ Let me fix it
+              </button>
+              <button disabled={checking} onClick={submit}
+                style={{ flex:1.4, padding:"16px", borderRadius:16,
+                  background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff",
+                  fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18, opacity:checking?0.7:1 }}>
+                {checking ? "Checking…" : "Checked it — submit ✓"}
+              </button>
+            </div>
+          ) : (
+            <button disabled={checking || (q.type==="mc" ? !selected : !fillValue.trim())}
+              onClick={submit}
+              style={{
+                width:"100%", padding:"16px", borderRadius:16,
+                background: (q.type==="mc"?selected:fillValue.trim()) ? accent : "var(--bg-card)",
+                color:"#fff", fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:20,
+                opacity: checking?0.7:1
+              }}>
+              {checking ? "Checking…" : "Check answer"}
+            </button>
+          )
+        ) : (
+          <button onClick={next}
+            style={{
+              width:"100%", padding:"16px", borderRadius:16,
+              background:"linear-gradient(90deg,#7c3aed,#a855f7)", color:"#fff",
+              fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:20
+            }}>
+            {idx+1 >= questions.length ? "See my results →" : "Next question →"}
+          </button>
+        )}
+      </div>
+
+      {/* "I'm stuck" help launcher */}
+      {!helpOpen && (
+        <button onClick={()=>setHelpOpen(true)}
+          style={{ marginTop:18, width:"100%", padding:"13px", borderRadius:14,
+            background:"var(--bg-card)", color:"#fcd34d", fontWeight:800, fontSize:15,
+            border:"1px dashed var(--border)" }}>
+          🙋 I'm stuck — ask for help
+          {helpCount.current>0 && <span style={{ marginLeft:8, fontSize:12.5, color:"var(--text-dim)" }}>
+            (asked {helpCount.current}× this session)</span>}
+        </button>
+      )}
+
+      {helpOpen && (
+        <div style={{ marginTop:18, background:"var(--bg-card)", borderRadius:18,
+          border:"1px solid var(--border)", overflow:"hidden", animation:"slideIn .25s ease" }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+            padding:"12px 16px", background:"linear-gradient(90deg,#5b21b6,#7c3aed)" }}>
+            <div className="display" style={{ fontWeight:600, fontSize:16 }}>🙋 Ask your tutor</div>
+            <button onClick={()=>setHelpOpen(false)}
+              style={{ background:"#0003", color:"#fff", borderRadius:8, padding:"4px 10px", fontWeight:700, fontSize:13 }}>
+              Close
+            </button>
+          </div>
+          <div style={{ maxHeight:240, overflowY:"auto", padding:"14px 16px", display:"flex",
+            flexDirection:"column", gap:10 }}>
+            {helpMsgs.length===0 && (
+              <div style={{ color:"var(--text-dim)", fontSize:14, lineHeight:1.5 }}>
+                Stuck on this one? Ask me anything about it — I'll help you figure it out (but I won't just give you the answer 😊).
+              </div>
+            )}
+            {helpMsgs.map((m,i)=>(
+              <div key={i} style={{ alignSelf: m.role==="user"?"flex-end":"flex-start",
+                maxWidth:"85%", padding:"10px 14px", borderRadius:14, fontSize:14.5, lineHeight:1.5,
+                background: m.role==="user" ? "linear-gradient(160deg,#2563eb,#1d4ed8)" : "var(--bg-deep)",
+                color:"#fff", whiteSpace:"pre-wrap" }}>
+                {m.content}
+              </div>
+            ))}
+            {helpBusy && <div style={{ alignSelf:"flex-start", padding:"10px 14px" }}>
+              <div className="spinner" style={{ width:22, height:22, borderWidth:3 }} /></div>}
+          </div>
+          <div style={{ display:"flex", gap:8, padding:"12px 16px", borderTop:"1px solid var(--border)" }}>
+            <input value={helpInput} onChange={e=>setHelpInput(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") sendHelp(); }}
+              placeholder="Type your question…"
+              style={{ flex:1, padding:"12px 14px", borderRadius:10, background:"var(--bg-deep)",
+                color:"#fff", border:"1px solid var(--border)", outline:"none", fontSize:15 }} />
+            <button onClick={sendHelp} disabled={helpBusy || !helpInput.trim()}
+              style={{ padding:"12px 18px", borderRadius:10, fontWeight:700,
+                background: helpInput.trim() ? "linear-gradient(90deg,#7c3aed,#a855f7)":"var(--bg-deep)",
+                color:"#fff", fontSize:15 }}>
+              Ask
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+function Results({ session, profile, onHome }) {
+  const pct = Math.round((session.score/session.total)*100);
+  const msg = pct>=90 ? "Outstanding! 🏆" : pct>=70 ? "Great work! 🌟" : pct>=50 ? "Solid effort — gaps spotted 💪" : "We found the spots to work on 🔍";
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto", padding:"30px 18px 60px", textAlign:"center" }}>
+      <div className="display" style={{ fontSize:30, fontWeight:700 }}>{msg}</div>
+      <div style={{ margin:"24px auto", width:170, height:170, borderRadius:"50%",
+        background:`conic-gradient(#22c55e ${pct*3.6}deg, var(--bg-card) 0deg)`,
+        display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ width:140, height:140, borderRadius:"50%", background:"var(--bg-deep)",
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+          <div className="display" style={{ fontSize:44, fontWeight:700, color:"#fcd34d" }}>{pct}%</div>
+          <div style={{ color:"var(--text-dim)", fontWeight:700 }}>{session.score}/{session.total}</div>
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:18 }}>
+        <Stat label="Top level reached" value={"Level "+session.maxLevel} />
+        <Stat label="Mode" value={(MODES[session.mode]||{label:session.mode}).label} />
+        <Stat label="Help asks" value={session.helpRequests || 0} />
+      </div>
+
+      {session.weakSkills.length>0 && (
+        <div style={{ background:"var(--bg-card)", borderRadius:16, padding:"16px 18px",
+          textAlign:"left", marginBottom:14, border:"1px solid var(--border)" }}>
+          <div style={{ fontWeight:800, color:"#fca5a5", marginBottom:8 }}>🎯 Spots to work on next time</div>
+          {session.weakSkills.map((s,i)=>(
+            <div key={i} style={{ padding:"6px 0", color:"var(--text-soft)", borderBottom: i<session.weakSkills.length-1?"1px solid var(--border)":"none" }}>• {s}</div>
+          ))}
+        </div>
+      )}
+
+      {session.retentionResults.length>0 && (
+        <div style={{ background:"var(--bg-card)", borderRadius:16, padding:"16px 18px",
+          textAlign:"left", marginBottom:14, border:"1px solid var(--border)" }}>
+          <div style={{ fontWeight:800, color:"#93c5fd", marginBottom:8 }}>🧠 Memory check (did it stick?)</div>
+          {session.retentionResults.map((r,i)=>(
+            <div key={i} style={{ padding:"5px 0", color:"var(--text-soft)" }}>
+              {r.correct ? "✅" : "🔁"} {r.skill} {r.correct ? "— remembered!" : "— we'll revisit this"}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button onClick={onHome} style={{ width:"100%", padding:"16px", borderRadius:16,
+        background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff",
+        fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:20, marginTop:8 }}>
+        Back to start
+      </button>
+      <div style={{ fontSize:13, color:"var(--text-dim)", marginTop:14 }}>
+        Tip for parent: screenshot this for your weekly log.
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div style={{ background:"var(--bg-card)", borderRadius:14, padding:"14px" }}>
+      <div style={{ fontSize:12, color:"var(--text-dim)", fontWeight:800, textTransform:"uppercase", letterSpacing:"0.5px" }}>{label}</div>
+      <div className="display" style={{ fontSize:22, fontWeight:600, marginTop:4 }}>{value}</div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SUPERNOTE WORK ANALYSIS SCREEN
+   ============================================================ */
+function WorkUpload({ onExit }) {
+  const [image, setImage] = useState(null);      // {data, mediaType, preview}
+  const [context, setContext] = useState("");
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const fileRef = useRef();
+
+  function onFile(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = reader.result.split(",")[1];
+      setImage({ data:b64, mediaType:f.type, preview:reader.result });
+      setResult(null); setError(null);
+    };
+    reader.readAsDataURL(f);
+  }
+
+  async function analyze() {
+    if (!image) return;
+    setLoading(true); setError(null);
+    try {
+      const r = await analyzeWork({ imageBase64:image.data, mediaType:image.mediaType, problemContext:context });
+      setResult(r);
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto", padding:"20px 18px 60px" }}>
+      <button onClick={onExit} style={{ background:"var(--bg-card)", color:"var(--text-soft)",
+        padding:"8px 14px", borderRadius:10, fontWeight:700, marginBottom:18 }}>← Back</button>
+      <div className="display" style={{ fontSize:26, fontWeight:600, marginBottom:6 }}>📸 Show me your work</div>
+      <div style={{ color:"var(--text-soft)", marginBottom:20, lineHeight:1.5 }}>
+        Take a screenshot of your Supernote work and upload it. I'll read your steps, follow your thinking,
+        and help you find any spot that needs a fix — without just giving you the answer.
+      </div>
+
+      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display:"none" }} />
+
+      {!image ? (
+        <button onClick={()=>fileRef.current.click()}
+          style={{ width:"100%", padding:"40px", borderRadius:18, background:"var(--bg-card)",
+            border:"2px dashed var(--border)", color:"var(--text-soft)", fontSize:18, fontWeight:700 }}>
+          📷 Tap to upload a photo
+        </button>
+      ) : (
+        <div>
+          <img src={image.preview} alt="your work"
+            style={{ width:"100%", borderRadius:16, border:"1px solid var(--border)", marginBottom:12 }} />
+          <button onClick={()=>fileRef.current.click()}
+            style={{ ...ghostBtn, width:"100%", marginBottom:12 }}>Choose a different photo</button>
+        </div>
+      )}
+
+      <input value={context} onChange={e=>setContext(e.target.value)}
+        placeholder="(optional) What problem are you solving?"
+        style={{ width:"100%", padding:"14px 16px", borderRadius:12, background:"var(--bg-card)",
+          color:"#fff", border:"1px solid var(--border)", outline:"none", fontSize:15, marginBottom:14 }} />
+
+      <button disabled={!image || loading} onClick={analyze}
+        style={{ width:"100%", padding:"16px", borderRadius:16,
+          background: image ? "linear-gradient(90deg,#7c3aed,#a855f7)" : "var(--bg-card)",
+          color:"#fff", fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:20, opacity:loading?0.7:1 }}>
+        {loading ? "Reading your work…" : "Read my work & help me"}
+      </button>
+
+      {loading && <Spinner label="Tracing your steps…" />}
+      {error && <div style={{ marginTop:16 }}><ErrorBox error={error} /></div>}
+      {result && (
+        <div style={{ marginTop:20, background:"linear-gradient(160deg,var(--bg-card-soft),var(--bg-card))",
+          borderRadius:18, padding:"20px 22px", border:"1px solid var(--border)",
+          lineHeight:1.6, fontSize:16, whiteSpace:"pre-wrap", animation:"slideIn .4s ease" }}>
+          {result}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   WRITING SCREEN — short prompts using practiced vocabulary
+   ============================================================ */
+function Writing({ config, profile, saveProfile, onExit }) {
+  const [prompt, setPrompt] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [text, setText] = useState("");
+  const [review, setReview] = useState(null);
+  const [reviewing, setReviewing] = useState(false);
+  const fileRef = useRef();
+  const [imgPreview, setImgPreview] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const p = await generateWritingPrompt({
+          week: config.week, day: config.day,
+          practicedWords: profile.practicedWords || [],
+          weakSpots: profile.weakSpots.english || []
+        });
+        if (alive) { setPrompt(p); setLoading(false); }
+      } catch(e) { if (alive) { setError(e.message); setLoading(false); } }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  function onFile(e) {
+    const f = e.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => setImgPreview(reader.result);
+    reader.readAsDataURL(f);
+  }
+
+  async function submit() {
+    if (!text.trim() || reviewing) return;
+    setReviewing(true); setError(null);
+    try {
+      const r = await reviewWriting({
+        text: text.trim(), prompt: prompt.prompt,
+        targetWords: prompt.targetWords, weakSpots: profile.weakSpots.english || []
+      });
+      setReview(r.feedback);
+      // log a lightweight writing session
+      const np = JSON.parse(JSON.stringify(profile));
+      np.sessions = np.sessions || [];
+      np.sessions.push({
+        date: new Date().toISOString(), subject:"english", week: config.week,
+        mode:"writing", score: (r.meta.targetsUsed||0), total: (prompt.targetWords||[]).length,
+        wordCount: r.meta.wordCount || text.trim().split(/\s+/).length,
+        mechanicsIssue: r.meta.mechanicsIssue || "", weakSkills: [], retentionResults: [], helpRequests: 0
+      });
+      np.writingThisWeek = np.writingThisWeek || {};
+      np.writingThisWeek[config.week] = (np.writingThisWeek[config.week] || 0) + 1;
+      await saveProfile(np);
+    } catch(e) { setError(e.message); }
+    setReviewing(false);
+  }
+
+  if (loading) return <CenterWrap onExit={onExit}><Spinner label="Writing a prompt just for you…" /></CenterWrap>;
+  if (error && !prompt) return <CenterWrap onExit={onExit}><ErrorBox error={error} /></CenterWrap>;
+
+  const doneThisWeek = (profile.writingThisWeek && profile.writingThisWeek[config.week]) || 0;
+
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto", padding:"20px 18px 60px" }}>
+      <button onClick={onExit} style={{ background:"var(--bg-card)", color:"var(--text-soft)",
+        padding:"8px 14px", borderRadius:10, fontWeight:700, marginBottom:18 }}>← Back</button>
+
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+        <div className="display" style={{ fontSize:26, fontWeight:600 }}>✍️ Writing time</div>
+        <div style={{ fontSize:13, fontWeight:800, color: doneThisWeek>=2 ? "#86efac":"var(--text-dim)" }}>
+          {doneThisWeek}/2 this week {doneThisWeek>=2 ? "✓":""}
+        </div>
+      </div>
+
+      {/* prompt */}
+      <div style={{ background:"linear-gradient(160deg,var(--bg-card-soft),var(--bg-card))",
+        border:"1px solid var(--border)", borderRadius:18, padding:"18px 20px", marginBottom:16,
+        fontSize:17, lineHeight:1.55 }}>
+        {prompt.prompt}
+        <div style={{ marginTop:12, display:"flex", flexWrap:"wrap", gap:8 }}>
+          {(prompt.targetWords||[]).map((w,i)=>(
+            <span key={i} style={{ padding:"5px 12px", borderRadius:20, fontWeight:700, fontSize:14,
+              background:"linear-gradient(160deg,#0d9488,#14b8a6)", color:"#fff" }}>{w}</span>
+          ))}
+        </div>
+        <div style={{ marginTop:10, fontSize:13, color:"var(--text-dim)", fontWeight:700 }}>
+          Aim for about {prompt.lines} sentences · use the {(prompt.targetWords||[]).length} teal words
+        </div>
+      </div>
+
+      {!review && (
+        <>
+          <textarea value={text} onChange={e=>setText(e.target.value)}
+            placeholder="Write your paragraph here… (or upload a photo of your handwriting below)"
+            rows={7}
+            style={{ width:"100%", padding:"16px", borderRadius:14, background:"var(--bg-card)",
+              color:"#fff", border:"1px solid var(--border)", outline:"none", fontSize:16,
+              lineHeight:1.6, resize:"vertical", fontFamily:"inherit" }} />
+          <div style={{ fontSize:13, color:"var(--text-dim)", margin:"6px 2px 14px", fontWeight:700 }}>
+            {text.trim() ? text.trim().split(/\s+/).length+" words" : "0 words"}
+          </div>
+
+          <input ref={fileRef} type="file" accept="image/*" onChange={onFile} style={{ display:"none" }} />
+          {imgPreview && <img src={imgPreview} alt="handwriting"
+            style={{ width:"100%", borderRadius:14, marginBottom:12, border:"1px solid var(--border)" }} />}
+          <div style={{ display:"flex", gap:10 }}>
+            <button onClick={()=>fileRef.current.click()} style={{ ...ghostBtn, flex:1 }}>
+              📸 Upload handwriting
+            </button>
+            <button disabled={!text.trim() || reviewing} onClick={submit}
+              style={{ flex:2, padding:"14px", borderRadius:14,
+                background: text.trim() ? "linear-gradient(90deg,#16a34a,#22c55e)":"var(--bg-card)",
+                color:"#fff", fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18, opacity:reviewing?0.7:1 }}>
+              {reviewing ? "Reading…" : "Get feedback"}
+            </button>
+          </div>
+        </>
+      )}
+
+      {error && <div style={{ marginTop:14 }}><ErrorBox error={error} /></div>}
+
+      {review && (
+        <div>
+          <div style={{ background:"linear-gradient(160deg,var(--bg-card-soft),var(--bg-card))",
+            borderRadius:18, padding:"20px 22px", border:"1px solid var(--border)",
+            lineHeight:1.6, fontSize:16, whiteSpace:"pre-wrap", animation:"slideIn .4s ease" }}>
+            {review}
+          </div>
+          <button onClick={onExit} style={{ width:"100%", marginTop:16, padding:"15px", borderRadius:14,
+            background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff",
+            fontFamily:"'Fredoka',sans-serif", fontWeight:600, fontSize:18 }}>
+            Done ✓
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   PARENT REVIEW SCREEN
+   ============================================================ */
+function ParentReview({ profile, onExit }) {
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const sessions = profile.sessions || [];
+
+  async function run() {
+    setLoading(true); setError(null);
+    try {
+      const recent = sessions.filter(s => !s.backfilled).slice(-12);
+      const r = await parentReview({ log: { sessions:recent, weakSpots:profile.weakSpots,
+        mastered:profile.mastered, retentionQueue:profile.retentionQueue } });
+      setResult(r);
+    } catch(e) { setError(e.message); }
+    setLoading(false);
+  }
+
+  function exportLog() {
+    const blob = new Blob([JSON.stringify(profile, null, 2)], { type:"application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "anam_progress_"+new Date().toISOString().slice(0,10)+".json";
+    a.click(); URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto", padding:"20px 18px 60px" }}>
+      <button onClick={onExit} style={{ background:"var(--bg-card)", color:"var(--text-soft)",
+        padding:"8px 14px", borderRadius:10, fontWeight:700, marginBottom:18 }}>← Back</button>
+      <div className="display" style={{ fontSize:26, fontWeight:600, marginBottom:6 }}>📊 Parent review</div>
+      <div style={{ color:"var(--text-soft)", marginBottom:18 }}>
+        {sessions.length} session{sessions.length!==1?"s":""} logged.
+        An honest analysis of where Anam stands and what to target next.
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+        <Stat label="Sessions" value={sessions.length} />
+        <Stat label="Total help asks" value={profile.helpTotal || 0} />
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:18 }}>
+        <Stat label="Math weak spots" value={(profile.weakSpots.math||[]).length} />
+        <Stat label="English weak spots" value={(profile.weakSpots.english||[]).length} />
+      </div>
+
+      <div style={{ display:"flex", gap:10, marginBottom:18 }}>
+        <button disabled={loading || !sessions.length} onClick={run}
+          style={{ flex:2, padding:"15px", borderRadius:14,
+            background: sessions.length ? "linear-gradient(90deg,#2563eb,#3b82f6)":"var(--bg-card)",
+            color:"#fff", fontWeight:700, fontSize:16, opacity:loading?0.7:1 }}>
+          {loading ? "Analyzing…" : "Generate analysis"}
+        </button>
+        <button onClick={exportLog} style={{ ...ghostBtn, flex:1 }}>⬇ Export data</button>
+      </div>
+
+      {!sessions.length && (
+        <div style={{ background:"var(--bg-card)", borderRadius:14, padding:"18px", color:"var(--text-soft)" }}>
+          No sessions yet. Once Anam completes a few, come back here for the analysis.
+        </div>
+      )}
+
+      {loading && <Spinner label="Reading the session log…" />}
+      {error && <ErrorBox error={error} />}
+      {result && (
+        <div style={{ background:"var(--bg-card)", borderRadius:18, padding:"22px",
+          border:"1px solid var(--border)", lineHeight:1.65, fontSize:15.5, whiteSpace:"pre-wrap" }}>
+          {result}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   SHARED
+   ============================================================ */
+function CenterWrap({ children, onExit }) {
+  return (
+    <div style={{ maxWidth:680, margin:"0 auto", padding:"30px 18px" }}>
+      {onExit && <button onClick={onExit} style={{ background:"var(--bg-card)", color:"var(--text-soft)",
+        padding:"8px 14px", borderRadius:10, fontWeight:700, marginBottom:18 }}>← Exit</button>}
+      {children}
+    </div>
+  );
+}
+
+function ErrorBox({ error }) {
+  const isAPI = /API error|Failed to fetch|api\.anthropic/.test(error||"");
+  return (
+    <div style={{ background:"linear-gradient(160deg,#7f1d1d,#991b1b)", borderRadius:16,
+      padding:"18px 20px", lineHeight:1.5 }}>
+      <div className="display" style={{ fontWeight:600, fontSize:18, marginBottom:6 }}>Couldn't reach the tutor brain</div>
+      <div style={{ fontSize:14.5, color:"#fecaca" }}>
+        {isAPI
+          ? "This app needs to call the Claude API to generate questions. Inside Claude.ai it works automatically. If you're running the file standalone, it needs an Anthropic API key added (Claude Code can do this in one line)."
+          : "Something went wrong: " + error}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   ROOT APP
+   ============================================================ */
+const DEFAULT_PROFILE = {
+  name: "Anam",
+  currentWeek: 1, currentDay: 1,
+  sessions: [],
+  weakSpots: { math: [], english: [] },
+  retentionQueue: { math: [], english: [] },
+  mastered: { math: [], english: [] },
+  practicedWords: [],
+  writingThisWeek: {},
+  helpTotal: 0,
+  manualDays: {},    // { "math:1:2": true } → manually marked day done
+  manualWeeks: {}    // { "english:1": true } → manually marked week done
+};
+
+function App() {
+  const [screen, setScreen] = useState("setup"); // setup | quiz | results | work | review
+  const [config, setConfig] = useState(null);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+  const [lastSession, setLastSession] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [resumeData, setResumeData] = useState(null);   // unfinished session, if any
+  const [resuming, setResuming] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      // check for an unfinished session to resume
+      try {
+        const active = await Store.get("activeSession", null);
+        if (active && active.questions && active.questions.length && active.idx < active.questions.length) {
+          setResumeData(active);
+        }
+      } catch(e) {}
+
+      const p = await Store.get("profile", DEFAULT_PROFILE);
+      // migrate shape
+      const merged = { ...DEFAULT_PROFILE, ...p,
+        weakSpots: { ...DEFAULT_PROFILE.weakSpots, ...(p.weakSpots||{}) },
+        retentionQueue: { ...DEFAULT_PROFILE.retentionQueue, ...(p.retentionQueue||{}) },
+        mastered: { ...DEFAULT_PROFILE.mastered, ...(p.mastered||{}) },
+        practicedWords: p.practicedWords || [],
+        writingThisWeek: p.writingThisWeek || {},
+        helpTotal: p.helpTotal || 0,
+        manualDays: p.manualDays || {},
+        manualWeeks: p.manualWeeks || {} };
+
+      // One-time backfill: mark Week 1, Days 1-2 done for Math & English
+      // (work completed before day-tracking existed). Runs once via a flag.
+      if (!merged.backfilledW1D12) {
+        merged.sessions = merged.sessions || [];
+        for (const subj of ["math","english"]) {
+          for (const d of [1,2]) {
+            const exists = merged.sessions.some(
+              x => x.subject===subj && x.week===1 && x.day===d && x.mode==="practice");
+            if (!exists) {
+              merged.sessions.push({
+                date: new Date().toISOString(),
+                subject: subj, week: 1, day: d, mode: "practice",
+                score: null, total: null, maxLevel: null,
+                weakSkills: [], retentionResults: [], helpRequests: 0,
+                backfilled: true   // marks it as a manual catch-up entry, not a graded session
+              });
+            }
+          }
+        }
+        merged.backfilledW1D12 = true;
+        await Store.set("profile", merged);
+      }
+
+      setProfile(merged);
+      setLoaded(true);
+    })();
+  }, []);
+
+  const saveProfile = useCallback(async (p) => {
+    setProfile(p);
+    await Store.set("profile", p);
+  }, []);
+
+  function start(cfg) {
+    setResuming(false);
+    setConfig(cfg);
+    if (cfg.subject === "work") setScreen("work");
+    else if (cfg.subject === "review") setScreen("review");
+    else if (cfg.subject === "writing") setScreen("writing");
+    else setScreen("quiz");
+  }
+
+  function resumeSession() {
+    setConfig(resumeData.config);
+    setResuming(true);
+    setScreen("quiz");
+  }
+  async function discardSession() {
+    setResumeData(null);
+    await Store.set("activeSession", null);
+  }
+
+  if (!loaded) return <CenterWrap><Spinner label="Loading Anam's lab…" /></CenterWrap>;
+
+  return (
+    <>
+      {screen==="setup" && <>
+        {resumeData && (
+          <div style={{ maxWidth:720, margin:"0 auto", padding:"18px 18px 0" }}>
+            <div style={{ background:"linear-gradient(160deg,#1e3a8a,#1d4ed8)", borderRadius:16,
+              padding:"16px 20px", display:"flex", alignItems:"center", justifyContent:"space-between",
+              gap:12, flexWrap:"wrap" }}>
+              <div>
+                <div className="display" style={{ fontSize:17, fontWeight:600 }}>
+                  📌 You have an unfinished {resumeData.config.subject==="math"?"Math":"English"} session
+                </div>
+                <div style={{ fontSize:13.5, color:"#dbeafe", marginTop:3 }}>
+                  Week {resumeData.config.week}, Day {resumeData.config.day} · question {resumeData.idx+1} of {resumeData.questions.length}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={discardSession} style={{ padding:"10px 14px", borderRadius:10,
+                  background:"#0003", color:"#fff", fontWeight:700, fontSize:14 }}>Start fresh</button>
+                <button onClick={resumeSession} style={{ padding:"10px 16px", borderRadius:10,
+                  background:"linear-gradient(90deg,#16a34a,#22c55e)", color:"#fff", fontWeight:700, fontSize:14 }}>
+                  Resume →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <Setup onStart={start} profile={profile} saveProfile={saveProfile} />
+      </>}
+      {screen==="quiz" && <Quiz config={config} profile={profile} saveProfile={saveProfile}
+        resumeData={resuming ? resumeData : null}
+        onDone={(s,np)=>{ setLastSession(s); setResumeData(null); setResuming(false); setScreen("results"); }}
+        onExit={()=>{ setResuming(false); setScreen("setup"); }} />}
+      {screen==="results" && <Results session={lastSession} profile={profile} onHome={()=>setScreen("setup")} />}
+      {screen==="work" && <WorkUpload onExit={()=>setScreen("setup")} />}
+      {screen==="writing" && <Writing config={config} profile={profile} saveProfile={saveProfile}
+        onExit={()=>setScreen("setup")} />}
+      {screen==="review" && <ParentReview profile={profile} onExit={()=>setScreen("setup")} />}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
