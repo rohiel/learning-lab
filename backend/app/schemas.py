@@ -108,3 +108,126 @@ class SeedRequest(BaseModel):
 class SeedResponse(BaseModel):
     student_id: int
     prepared: list[dict]
+
+
+# ---------------------------------------------------------------------------
+# Phase 3a: gameplay
+# ---------------------------------------------------------------------------
+
+class SessionStartRequest(BaseModel):
+    student_id: int
+    subject: Subject
+    week: int = Field(ge=1, le=8)
+    day: int = Field(ge=1, le=7)
+    mode: Literal["practice", "test"] = "practice"
+
+
+class AnsweredItem(BaseModel):
+    question_id: int
+    correct: bool
+    given: Optional[str] = None
+
+
+class SessionStartResponse(BaseModel):
+    session_id: int
+    resumed: bool
+    mode: str
+    subject: str
+    week: int
+    day: int
+    questions: list[QuestionPublic]
+    answered: list[AnsweredItem]  # already-answered questions, for resume
+
+
+class AnswerRequest(BaseModel):
+    session_id: int
+    question_id: int
+    given: str
+    needed_help: bool = False
+
+
+class AnswerResponse(BaseModel):
+    correct: bool
+    hint: Optional[str] = None
+    correct_answer: str  # revealed only AFTER she answers (e.g. MC highlight)
+    reason: Optional[str] = None
+
+
+class SessionCompleteRequest(BaseModel):
+    session_id: int
+
+
+class SessionCompleteResponse(BaseModel):
+    score: int
+    total: int
+    max_level: int
+    weak_skills: list[str]
+    retention_passed: list[str]
+
+
+class HelpMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class HelpRequest(BaseModel):
+    session_id: int
+    question_id: int
+    history: list[HelpMessage]
+    off_topic_count: int = 0
+
+
+class HelpResponse(BaseModel):
+    reply: str
+    help_requests: int
+
+
+class WritingReviewRequest(BaseModel):
+    student_id: int
+    week: int = Field(ge=1, le=8)
+    day: int = Field(ge=1, le=7)
+    text: str
+    prompt: Optional[str] = None
+    target_words: Optional[list[str]] = None
+
+
+class WritingReviewResponse(BaseModel):
+    feedback: str
+    meta: dict
+
+
+class WorkAnalyzeResponse(BaseModel):
+    feedback: str
+
+
+class ProgressFlagRequest(BaseModel):
+    student_id: int
+    subject: Subject
+    week: int = Field(ge=1, le=8)
+    day: Optional[int] = Field(default=None, ge=1, le=7)  # None => week-level flag
+    done: bool = True
+
+
+class ProgressResponse(BaseModel):
+    student: dict
+    days: list[dict]
+    weeks: list[dict]
+    weak_spots: dict
+    retention: dict
+    mastered: dict
+    help_total: int
+    writing_this_week: dict
+
+
+class DayRecordsResponse(BaseModel):
+    subject: str
+    week: int
+    day: int
+    score: Optional[int] = None
+    total: Optional[int] = None
+    records: list[dict]
+
+
+class ReviewResponse(BaseModel):
+    review: str
+    sessions: int

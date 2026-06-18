@@ -9,7 +9,8 @@ from slowapi import _rate_limit_exceeded_handler
 from .config import settings
 from .db import init_db
 from .ratelimit import limiter
-from .routers import admin
+from .routers import admin, play
+from .routers import progress as progress_router
 from .scheduler import shutdown_scheduler, start_scheduler
 
 
@@ -40,6 +41,8 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(admin.router, prefix="/api")
+    app.include_router(play.router, prefix="/api")
+    app.include_router(progress_router.router, prefix="/api")
     return app
 
 
