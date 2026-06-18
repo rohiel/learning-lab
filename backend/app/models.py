@@ -125,3 +125,20 @@ class ProgressFlag(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class WritingPrompt(Base):
+    __tablename__ = "writing_prompts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), index=True)
+    week: Mapped[int] = mapped_column(Integer)
+    day: Mapped[int] = mapped_column(Integer)
+    prompt: Mapped[str] = mapped_column(Text)
+    target_words: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    lines: Mapped[int] = mapped_column(Integer, default=5)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_writing_lookup", "student_id", "week", "day"),
+    )

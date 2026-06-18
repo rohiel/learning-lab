@@ -1,29 +1,40 @@
-"""Admin + health endpoints (Phase 1).
+"""Admin + health endpoints.
 
 - GET  /api/health                 liveness (no auth)
-- POST /api/admin/generate-day     manually pre-generate a day's pool
-- GET  /api/admin/pool             inspect counts for a day
+- POST /api/admin/generate-day     manually pre-generate one day's pool
+- GET  /api/admin/pool             inspect pool counts for a day
+- POST /api/admin/run-nightly      manually trigger the nightly batch (testing/recovery)
+- POST /api/admin/seed             seed Week 1 Days 1-3 for a student
+- GET  /api/admin/writing-prompt   inspect a stored writing prompt
 
-The generate-day endpoint is idempotent: a day's pool is generated ONCE and is
-otherwise static. Pass force=true to regenerate.
+generate-day is idempotent: a day's pool is generated ONCE and is otherwise
+static. Pass force=true to regenerate.
 """
-from collections import Counter
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import require_api_key
 from ..db import get_db
-from ..generation import generate_day_pool
-from ..models import QuestionPool, Student
-from ..progress import get_retention_queue, get_weak_spots
+from ..models import Student
+from ..nightly import run_nightly
 from ..ratelimit import limiter
 from ..schemas import (
     GenerateDayRequest,
     GenerateDayResponse,
     PoolStatusResponse,
+    RunNightlyResponse,
+    SeedRequest,
+    SeedResponse,
     Subject,
+    WritingPromptPublic,
+)
+from ..seeding import seed_initial_pools
+from ..services import (
+    existing_pool,
+    existing_writing_prompt,
+    per_level_counts,
+    prepare_day_pool,
 )
 
 router = APIRouter(tags=["admin"])
@@ -32,10 +43,6 @@ router = APIRouter(tags=["admin"])
 @router.get("/health")
 def health():
     return {"status": "ok"}
-
-
-def _per_level_counts(rows) -> dict[int, int]:
-    return dict(sorted(Counter(r.level for r in rows).items()))
 
 
 @router.post("/admin/generate-day", response_model=GenerateDayResponse)
@@ -50,64 +57,10 @@ def generate_day(
     if not student:
         raise HTTPException(status_code=404, detail=f"No student with id {req.student_id}")
 
-    existing = db.scalars(
-        select(QuestionPool).where(
-            QuestionPool.student_id == req.student_id,
-            QuestionPool.subject == req.subject,
-            QuestionPool.week == req.week,
-            QuestionPool.day == req.day,
-        )
-    ).all()
-
-    if existing and not req.force:
-        # already prepared — return as-is (a day's pool is static)
-        return GenerateDayResponse(
-            student_id=req.student_id, subject=req.subject, week=req.week, day=req.day,
-            regenerated=False, total=len(existing), per_level=_per_level_counts(existing),
-        )
-
-    if existing and req.force:
-        for row in existing:
-            db.delete(row)
-        db.flush()
-
-    weak = get_weak_spots(db, req.student_id, req.subject)
-    retention = get_retention_queue(db, req.student_id, req.subject)
-
-    questions = generate_day_pool(
-        subject=req.subject,
-        week=req.week,
-        day=req.day,
-        weak_spots=weak,
-        retention_queue=retention,
-        count_per_level=req.count_per_level,
+    regenerated, rows = prepare_day_pool(
+        db, student, req.subject, req.week, req.day, force=req.force, count_per_level=req.count_per_level
     )
-
-    rows: list[QuestionPool] = []
-    for q in questions:
-        row = QuestionPool(
-            student_id=req.student_id,
-            subject=req.subject,
-            week=req.week,
-            day=req.day,
-            level=int(q.get("level") or 1),
-            type=q.get("type", "fill"),
-            passage=q.get("passage"),
-            question=q.get("question", ""),
-            choices=q.get("choices"),
-            answer=str(q.get("answer", "")),
-            solution=q.get("solution"),
-            skill=q.get("skill"),
-            retention=bool(q.get("retention")),
-            connection=bool(q.get("connection")),
-            has_distractor=bool(q.get("hasDistractor")),
-            distractor_note=q.get("distractorNote"),
-        )
-        db.add(row)
-        rows.append(row)
-
     if not rows:
-        # Generation produced nothing (e.g. missing API key / all calls failed).
         db.rollback()
         raise HTTPException(
             status_code=502,
@@ -117,7 +70,7 @@ def generate_day(
     db.commit()
     return GenerateDayResponse(
         student_id=req.student_id, subject=req.subject, week=req.week, day=req.day,
-        regenerated=True, total=len(rows), per_level=_per_level_counts(rows),
+        regenerated=regenerated, total=len(rows), per_level=per_level_counts(rows),
     )
 
 
@@ -130,15 +83,51 @@ def pool_status(
     db: Session = Depends(get_db),
     _: bool = Depends(require_api_key),
 ):
-    rows = db.scalars(
-        select(QuestionPool).where(
-            QuestionPool.student_id == student_id,
-            QuestionPool.subject == subject,
-            QuestionPool.week == week,
-            QuestionPool.day == day,
-        )
-    ).all()
+    rows = existing_pool(db, student_id, subject, week, day)
     return PoolStatusResponse(
         student_id=student_id, subject=subject, week=week, day=day,
-        total=len(rows), per_level=_per_level_counts(rows),
+        total=len(rows), per_level=per_level_counts(rows),
     )
+
+
+@router.post("/admin/run-nightly", response_model=RunNightlyResponse)
+@limiter.limit("4/hour")
+def trigger_nightly(
+    request: Request,
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_api_key),
+):
+    student_count = db.scalar(select(func.count(Student.id))) or 0
+    prepared = run_nightly(db)
+    return RunNightlyResponse(students=student_count, prepared=prepared)
+
+
+@router.post("/admin/seed", response_model=SeedResponse)
+@limiter.limit("4/hour")
+def seed(
+    request: Request,
+    req: SeedRequest,
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_api_key),
+):
+    student = db.get(Student, req.student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail=f"No student with id {req.student_id}")
+    prepared = seed_initial_pools(
+        db, student, week=req.week, days=tuple(req.days), count_per_level=req.count_per_level
+    )
+    return SeedResponse(student_id=req.student_id, prepared=prepared)
+
+
+@router.get("/admin/writing-prompt", response_model=WritingPromptPublic)
+def get_writing_prompt(
+    student_id: int = Query(...),
+    week: int = Query(..., ge=1, le=8),
+    day: int = Query(..., ge=1, le=7),
+    db: Session = Depends(get_db),
+    _: bool = Depends(require_api_key),
+):
+    row = existing_writing_prompt(db, student_id, week, day)
+    if not row:
+        raise HTTPException(status_code=404, detail="No writing prompt for that day")
+    return WritingPromptPublic.from_row(row)

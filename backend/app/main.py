@@ -10,12 +10,19 @@ from .config import settings
 from .db import init_db
 from .ratelimit import limiter
 from .routers import admin
+from .scheduler import shutdown_scheduler, start_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    if settings.scheduler_enabled:
+        start_scheduler()
+    try:
+        yield
+    finally:
+        if settings.scheduler_enabled:
+            shutdown_scheduler()
 
 
 def create_app() -> FastAPI:

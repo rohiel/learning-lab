@@ -71,3 +71,40 @@ class QuestionPublic(BaseModel):
             connection=bool(row.connection),
             precision=is_precision_question(row.level, row.answer, row.skill),
         )
+
+
+class WritingPromptPublic(BaseModel):
+    id: int
+    week: int
+    day: int
+    prompt: str
+    target_words: Optional[list[str]] = None
+    lines: int
+
+    @classmethod
+    def from_row(cls, row) -> "WritingPromptPublic":
+        return cls(
+            id=row.id,
+            week=row.week,
+            day=row.day,
+            prompt=row.prompt,
+            target_words=row.target_words,
+            lines=row.lines,
+        )
+
+
+class RunNightlyResponse(BaseModel):
+    students: int
+    prepared: list[dict]
+
+
+class SeedRequest(BaseModel):
+    student_id: int
+    week: int = Field(default=1, ge=1, le=8)
+    days: list[int] = Field(default=[1, 2, 3])
+    count_per_level: Optional[int] = Field(default=None, ge=1, le=12)
+
+
+class SeedResponse(BaseModel):
+    student_id: int
+    prepared: list[dict]

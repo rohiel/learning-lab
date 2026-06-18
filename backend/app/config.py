@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./data/tutor.db"
 
     # ---- Scheduler (Phase 2) ----
+    scheduler_enabled: bool = True
     scheduler_tz: str = "America/New_York"
     scheduler_hour: int = 20
 
