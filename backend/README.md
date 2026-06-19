@@ -127,8 +127,11 @@ aggregation + manual flags, and parent review.
 | `DATABASE_URL` | `sqlite:///./data/tutor.db` | swap to Postgres with no code change |
 | `SCHEDULER_ENABLED` | `true` | start the nightly background job |
 | `SCHEDULER_TZ` / `SCHEDULER_HOUR` | `America/New_York` / `20` | DST-aware ~8 PM local |
-| `FRONTEND_ORIGIN` | `*` | comma-separated CORS origins |
+| `FRONTEND_ORIGIN` | `*` | comma-separated CORS origins (dev only; prod is same-origin) |
 | `PER_LEVEL_MIN` / `PER_LEVEL_MAX` | `5` / `7` | pool size per level |
+| `STATIC_DIR` | `""` | path to the built SPA; set by the Docker image. Empty = API only |
+| `SPA_API_BASE` | `/api` | API base injected into the served SPA at runtime |
+| `AUTO_SEED_STUDENT` / `DEFAULT_STUDENT_NAME` | `true` / `Anam` | create the student on first boot |
 
 ## Security notes
 

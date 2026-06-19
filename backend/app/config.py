@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     per_level_min: int = 5
     per_level_max: int = 7
 
+    # ---- Static SPA serving (single-container deploy) ----
+    static_dir: str = ""          # path to the built frontend; empty = API only (dev)
+    spa_api_base: str = "/api"    # injected into the SPA at runtime
+
+    # ---- First-run convenience ----
+    auto_seed_student: bool = True
+    default_student_name: str = "Anam"
+
     @property
     def cors_origins(self) -> list[str]:
         if self.frontend_origin.strip() == "*":

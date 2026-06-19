@@ -11,11 +11,20 @@ import tempfile
 
 os.environ.setdefault("API_SHARED_SECRET", "test-secret")
 os.environ.setdefault("SCHEDULER_ENABLED", "false")
+os.environ.setdefault("AUTO_SEED_STUDENT", "false")  # keep tests deterministic
 
 _dbfile = pathlib.Path(tempfile.gettempdir()) / "tutor_test.db"
 if _dbfile.exists():
     _dbfile.unlink()
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_dbfile}")
+
+# A minimal built SPA so static-serving can be exercised in tests.
+_static = pathlib.Path(tempfile.gettempdir()) / "tutor_test_static"
+(_static / "assets").mkdir(parents=True, exist_ok=True)
+(_static / "index.html").write_text(
+    "<!doctype html><html><head><title>t</title></head><body>SPA-MARKER</body></html>"
+)
+os.environ.setdefault("STATIC_DIR", str(_static))
 
 import pytest  # noqa: E402
 
