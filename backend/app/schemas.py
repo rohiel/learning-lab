@@ -231,3 +231,20 @@ class DayRecordsResponse(BaseModel):
 class ReviewResponse(BaseModel):
     review: str
     sessions: int
+
+
+class StudentPublic(BaseModel):
+    id: int
+    name: str
+    current_week: int
+    current_day: int
+
+
+class ActiveSessionResponse(BaseModel):
+    session_id: int
+    subject: str
+    week: int
+    day: int
+    mode: str
+    answered: int
+    total: int

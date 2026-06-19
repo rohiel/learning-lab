@@ -12,16 +12,18 @@ import base64
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..auth import require_api_key
 from ..db import get_db
 from ..grading import ask_help
-from ..models import QuestionPool, Session as SessionModel, Student
+from ..models import Answer, QuestionPool, Session as SessionModel, Student
 from ..progress import get_weak_spots
 from ..ratelimit import limiter
 from ..review import review_writing
 from ..schemas import (
+    ActiveSessionResponse,
     AnswerRequest,
     AnswerResponse,
     HelpRequest,
@@ -31,6 +33,7 @@ from ..schemas import (
     SessionCompleteResponse,
     SessionStartRequest,
     SessionStartResponse,
+    StudentPublic,
     WorkAnalyzeResponse,
     WritingPromptPublic,
     WritingReviewRequest,
@@ -54,6 +57,37 @@ def _session_or_404(db, session_id) -> SessionModel:
     if not s:
         raise HTTPException(status_code=404, detail="Session not found")
     return s
+
+
+@router.get("/students", response_model=list[StudentPublic], dependencies=[Depends(require_api_key)])
+def list_students(db: Session = Depends(get_db)):
+    rows = db.scalars(select(Student).order_by(Student.id)).all()
+    return [
+        StudentPublic(id=r.id, name=r.name, current_week=r.current_week, current_day=r.current_day)
+        for r in rows
+    ]
+
+
+@router.get("/session/active/{student_id}", dependencies=[Depends(require_api_key)])
+def active_session(student_id: int, db: Session = Depends(get_db)):
+    """The latest in-progress practice/test session, for the home-screen resume
+    banner. Returns null when there's nothing to resume."""
+    sess = db.scalars(
+        select(SessionModel)
+        .where(
+            SessionModel.student_id == student_id,
+            SessionModel.completed_at.is_(None),
+            SessionModel.mode.in_(["practice", "test"]),
+        )
+        .order_by(SessionModel.started_at.desc())
+    ).first()
+    if not sess or not sess.selected_question_ids:
+        return None
+    answered = db.scalar(select(func.count()).select_from(Answer).where(Answer.session_id == sess.id)) or 0
+    return ActiveSessionResponse(
+        session_id=sess.id, subject=sess.subject, week=sess.week, day=sess.day,
+        mode=sess.mode, answered=answered, total=len(sess.selected_question_ids),
+    )
 
 
 @router.post("/session/start", response_model=SessionStartResponse, dependencies=[Depends(require_api_key)])

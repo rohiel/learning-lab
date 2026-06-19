@@ -71,6 +71,41 @@ def test_full_play_loop(monkeypatch):
         assert client.post("/api/session/start", json={"student_id": sid, "subject": "math", "week": 1, "day": 1}).status_code == 401
 
 
+def test_students_and_active_session(monkeypatch):
+    from app import sessions
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import Student
+
+    monkeypatch.setattr(sessions, "grade_answer", lambda *a, **k: {"correct": True, "reason": ""})
+
+    with TestClient(app) as client:
+        db = SessionLocal()
+        s = Student(name="P3", current_week=1, current_day=1)
+        db.add(s)
+        db.commit()
+        sid = s.id
+        _seed_pool(db, sid)
+        db.close()
+
+        # students lists the seeded student(s)
+        st = client.get("/api/students", headers=HEADERS)
+        assert st.status_code == 200 and any(x["id"] == sid for x in st.json())
+
+        # nothing to resume yet
+        assert client.get(f"/api/session/active/{sid}", headers=HEADERS).json() is None
+
+        # start a session -> now it's the active session
+        r = client.post("/api/session/start", headers=HEADERS, json={"student_id": sid, "subject": "math", "week": 1, "day": 1})
+        sessid = r.json()["session_id"]
+        active = client.get(f"/api/session/active/{sid}", headers=HEADERS).json()
+        assert active["session_id"] == sessid and active["answered"] == 0 and active["total"] == len(r.json()["questions"])
+
+        # completing it clears the active session
+        client.post("/api/session/complete", headers=HEADERS, json={"session_id": sessid})
+        assert client.get(f"/api/session/active/{sid}", headers=HEADERS).json() is None
+
+
 def test_help_writing_and_work(monkeypatch):
     from app.db import SessionLocal
     from app.main import app

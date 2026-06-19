@@ -1,0 +1,65 @@
+/* Lifted verbatim from tutor_app.html's <style> block — the look is unchanged. */
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root {
+  --bg-deep: #1a0b2e;
+  --bg-mid: #2d1454;
+  --bg-card: #3a1d68;
+  --bg-card-soft: #44237a;
+  --purple-glow: #7c3aed;
+  --accent-blue: #2563eb;
+  --accent-blue-l: #3b82f6;
+  --accent-teal: #0d9488;
+  --accent-teal-l: #14b8a6;
+  --accent-orange: #ea8a0c;
+  --accent-orange-l: #f59e0b;
+  --accent-pink: #db2777;
+  --accent-pink-l: #ec4899;
+  --green: #16a34a;
+  --green-l: #22c55e;
+  --red: #dc2626;
+  --text: #f5f3ff;
+  --text-soft: #c4b5fd;
+  --text-dim: #8b7bb8;
+  --border: rgba(167,139,250,0.22);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: radial-gradient(ellipse at top, #2d1454 0%, #1a0b2e 60%, #0f0620 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root { min-height: 100vh; }
+
+.display { font-family: 'Fredoka', sans-serif; }
+
+button { font-family: inherit; cursor: pointer; border: none; }
+button:focus-visible { outline: 3px solid var(--accent-orange-l); outline-offset: 2px; }
+
+@keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
+@keyframes correctPulse { 0%{transform:scale(1)} 50%{transform:scale(1.04)} 100%{transform:scale(1)} }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes floatUp { 0%{transform:translateY(0);opacity:1} 100%{transform:translateY(-40px);opacity:0} }
+@keyframes slideIn { from { opacity:0; transform: translateY(12px); } to { opacity:1; transform: translateY(0); } }
+
+.spinner {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 4px solid rgba(255,255,255,0.15);
+  border-top-color: var(--accent-orange-l);
+  animation: spin 0.8s linear infinite;
+}
+
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(167,139,250,0.3); border-radius: 5px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
