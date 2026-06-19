@@ -49,9 +49,11 @@ cp backend/.env.example backend/.env   # set ANTHROPIC_API_KEY + API_SHARED_SECR
 cp frontend/.env.example frontend/.env # set VITE_API_SECRET to the SAME secret
 ```
 
-Then run each side (one command each):
+Then run the servers:
 
 ```bash
+make dev              # runs BOTH (backend :8000 + frontend :5173); Ctrl+C stops both
+# …or each in its own terminal:
 make backend          # API at http://localhost:8000  (docs at /docs)
 make frontend         # SPA at http://localhost:5173
 ```
@@ -76,7 +78,9 @@ make docker           # or: docker compose up --build
 
 The container serves the built SPA at `/` and the API at `/api`. The shared
 secret is injected into the page at runtime from `API_SHARED_SECRET` — no
-rebuild needed to rotate it.
+rebuild needed to rotate it. `up` also runs a one-off **seed** step that
+generates Week 1 Days 1–3 on first launch (idempotent; needs the key), so
+there are questions to try right away — no manual curl.
 
 ## Deploy to your domain
 

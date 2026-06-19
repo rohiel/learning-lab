@@ -4,6 +4,7 @@
 help:
 	@echo "Targets:"
 	@echo "  make setup         install backend venv + frontend deps"
+	@echo "  make dev           run BOTH servers together (Ctrl+C stops both)"
 	@echo "  make backend       run the API at :8000 (reload)"
 	@echo "  make frontend      run the Vite dev server at :5173"
 	@echo "  make seed          create the student"
@@ -24,6 +25,14 @@ backend:
 
 frontend:
 	cd frontend && npm run dev
+
+# Run backend (:8000) and frontend (:5173) together; Ctrl+C stops both.
+dev:
+	@echo "▶ backend :8000  +  frontend :5173   (Ctrl+C stops both)"
+	@trap 'kill 0' EXIT INT TERM; \
+	  ( cd backend && . .venv/bin/activate && exec uvicorn app.main:app --reload ) & \
+	  ( cd frontend && exec npm run dev ) & \
+	  wait
 
 seed:
 	cd backend && . .venv/bin/activate && python seed.py

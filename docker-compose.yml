@@ -15,5 +15,21 @@ services:
       - tutor-data:/data
     restart: unless-stopped
 
+  # One-off: generates Week 1 Days 1-3 pools on first `up` so the app has
+  # questions immediately — no manual curl. Idempotent (re-runs skip existing
+  # days), runs after the app is healthy, and needs ANTHROPIC_API_KEY.
+  seed:
+    build: .
+    command: python seed_pools.py
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in .env}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+    volumes:
+      - tutor-data:/data
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   tutor-data:
