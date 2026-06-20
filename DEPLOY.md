@@ -24,6 +24,7 @@ silently skip it.
    - `API_SHARED_SECRET` = a long random string  *(required)*
    - `SCHEDULER_TZ` = `America/New_York`  *(default; the nightly tz)*
    - `SCHEDULER_HOUR` = `20`  *(default)*
+   - `AUTO_SEED_POOLS` = `true`  *(background-seed Week 1 Days 1-3 on first boot)*
    - optionally `ANTHROPIC_MODEL` (default `claude-sonnet-4-6`)
    - Railway sets `PORT`; the image listens on 8000, so add
      `PORT=8000` **or** change the start command to `--port $PORT`.
@@ -50,7 +51,10 @@ silently skip it.
 
 - A default student (**Anam**) is auto-created on first boot
   (`AUTO_SEED_STUDENT=true`, `DEFAULT_STUDENT_NAME`).
-- **Prepare questions** — either wait for tonight's 8 PM run, or prep immediately:
+- **Questions:** set `AUTO_SEED_POOLS=true` (recommended) and the app
+  background-seeds Week 1 Days 1–3 on first boot — reachable immediately, with
+  questions filling in within a few minutes. Otherwise wait for the 8 PM run, or
+  prep on demand:
   ```bash
   curl -X POST https://YOUR_DOMAIN/api/admin/seed \
     -H "X-API-Key: $API_SHARED_SECRET" -H "Content-Type: application/json" \

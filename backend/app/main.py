@@ -52,6 +52,12 @@ async def lifespan(app: FastAPI):
     _auto_seed_student()
     if settings.scheduler_enabled:
         start_scheduler()
+    if settings.auto_seed_pools:
+        import threading
+
+        from .seeding import background_seed
+
+        threading.Thread(target=background_seed, name="auto-seed", daemon=True).start()
     try:
         yield
     finally:

@@ -78,3 +78,33 @@ def test_reseed_only_generates_missing_days(db_session, monkeypatch):
     assert second["failed"] == []
     assert state["calls"] - calls_after_first == 2  # only math+english for day 2
     assert db_session.query(QuestionPool).filter_by(day=2).count() == 2
+
+
+def test_parse_days():
+    from app.seeding import _parse_days
+
+    assert _parse_days("1,2,3") == [1, 2, 3]
+    assert _parse_days("2") == [2]
+    assert _parse_days("1 2 3") == [1, 2, 3]
+    assert _parse_days("") == [1, 2, 3]       # fallback
+    assert _parse_days("9,1,0") == [1]        # out-of-range filtered
+
+
+def test_background_seed(db_session, monkeypatch):
+    from app import seeding
+    from app.config import settings
+    from app.db import SessionLocal
+    from app.models import QuestionPool
+
+    monkeypatch.setattr(services, "generate_day_pool", lambda **k: list(CANNED))
+    monkeypatch.setattr(settings, "auto_seed_days", "1")  # only day 1 (not a writing day)
+    monkeypatch.setattr(settings, "auto_seed_week", 1)
+    _student(db_session)
+
+    seeding.background_seed()  # runs against its own session on the same DB
+
+    db2 = SessionLocal()
+    try:
+        assert db2.query(QuestionPool).filter_by(day=1).count() == 2  # math + english
+    finally:
+        db2.close()

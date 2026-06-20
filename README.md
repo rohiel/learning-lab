@@ -78,9 +78,9 @@ make docker           # or: docker compose up --build
 
 The container serves the built SPA at `/` and the API at `/api`. The shared
 secret is injected into the page at runtime from `API_SHARED_SECRET` — no
-rebuild needed to rotate it. `up` also runs a one-off **seed** step that
-generates Week 1 Days 1–3 on first launch (idempotent; needs the key), so
-there are questions to try right away — no manual curl.
+rebuild needed to rotate it. On first boot the app **background-seeds** Week 1
+Days 1–3 (`AUTO_SEED_POOLS=true`), so it's reachable immediately and questions
+fill in within a few minutes — no manual curl.
 
 ## Deploy to your domain
 

@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     # ---- First-run convenience ----
     auto_seed_student: bool = True
     default_student_name: str = "Anam"
+    # Background-seed a few days on first boot so the app has questions to try.
+    # Runs in a daemon thread, so the app is reachable immediately.
+    auto_seed_pools: bool = False
+    auto_seed_week: int = 1
+    auto_seed_days: str = "1,2,3"
 
     @property
     def cors_origins(self) -> list[str]:

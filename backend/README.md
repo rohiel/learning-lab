@@ -134,6 +134,7 @@ aggregation + manual flags, and parent review.
 | `STATIC_DIR` | `""` | path to the built SPA; set by the Docker image. Empty = API only |
 | `SPA_API_BASE` | `/api` | API base injected into the served SPA at runtime |
 | `AUTO_SEED_STUDENT` / `DEFAULT_STUDENT_NAME` | `true` / `Anam` | create the student on first boot |
+| `AUTO_SEED_POOLS` / `AUTO_SEED_WEEK` / `AUTO_SEED_DAYS` | `false` / `1` / `1,2,3` | background-seed pools on boot (app stays reachable) |
 
 ## Security notes
 
