@@ -5,6 +5,7 @@ Keeping pool / writing-prompt creation here (not in a router) means the nightly
 job and the manual triggers run the exact same, tested code path. None of these
 commit — the caller owns the transaction.
 """
+import logging
 from collections import Counter
 
 from sqlalchemy import select
@@ -13,6 +14,8 @@ from sqlalchemy.orm import Session
 from .generation import generate_day_pool, generate_writing_prompt
 from .models import QuestionPool, WritingPrompt
 from .progress import get_practiced_words, get_retention_queue, get_weak_spots
+
+log = logging.getLogger("tutor.services")
 
 # Writing is due twice a week; these are the designated writing days (1-7).
 WRITING_DAYS = (3, 6)
@@ -76,8 +79,11 @@ def prepare_day_pool(db: Session, student, subject, week, day, force=False, coun
     """
     existing = existing_pool(db, student.id, subject, week, day)
     if existing and not force:
+        # idempotent short-circuit — no Anthropic call when the day is already prepared
+        log.info("pool exists %s W%sD%s (%d questions) — skipping generation", subject, week, day, len(existing))
         return False, existing
 
+    log.info("preparing pool %s W%sD%s%s", subject, week, day, " (force)" if force else "")
     weak = get_weak_spots(db, student.id, subject)
     retention = get_retention_queue(db, student.id, subject)
     questions = generate_day_pool(

@@ -2,13 +2,14 @@
 
 For each day we generate 5-7 questions PER difficulty level (1-5), ~25-35 total,
 weighted ~70% toward weak spots via the prompt's weak-note (exactly as the
-original app weighted its live batches). Unlike the live app there's no latency
-pressure, so we generate one calm call per level instead of parallel batches —
-but we keep the same JSON-recovery safety net.
+original app weighted its live batches). These calls are large and slow, so they
+use the generous generation timeout/retries and log per-call timing.
 """
+import logging
 import random
+import time
 
-from .anthropic_client import call_claude
+from .anthropic_client import call_claude, is_timeout_error
 from .config import settings
 from .curriculum import LEXILE_BY_WEEK
 from .jsonutils import extract_json
@@ -17,6 +18,8 @@ from .prompts import (
     build_question_user_prompt,
     build_writing_prompt_system,
 )
+
+log = logging.getLogger("tutor.generation")
 
 
 def _safe_parse_questions(txt: str) -> list:
@@ -29,25 +32,48 @@ def _safe_parse_questions(txt: str) -> list:
 
 
 def generate_level_questions(subject, week, day, level, count, weak_spots, retention_queue) -> list[dict]:
-    """Generate `count` questions all pinned to `level`."""
+    """Generate `count` questions all pinned to `level`. Logs elapsed time;
+    re-raises on failure so callers can record per-day status."""
     lexile = LEXILE_BY_WEEK[week]
     system = build_question_system_prompt(
         subject, week, lexile, day, weak_spots, retention_queue, count, level
     )
     user = build_question_user_prompt(subject, week, count, level)
-    txt = call_claude([{"role": "user", "content": user}], system, max_tokens=4000, timeout=40.0, retries=1)
 
-    out: list[dict] = []
+    log.info("generate START %s W%sD%s L%s (count=%s, timeout=%ss)",
+             subject, week, day, level, count, settings.generation_timeout)
+    t0 = time.monotonic()
+    try:
+        txt = call_claude(
+            [{"role": "user", "content": user}],
+            system,
+            max_tokens=4000,
+            timeout=settings.generation_timeout,
+            retries=settings.generation_retries,
+        )
+    except Exception as e:
+        elapsed = time.monotonic() - t0
+        log.warning("generate FAILED %s W%sD%s L%s after %.1fs (%s%s)",
+                    subject, week, day, level, elapsed, type(e).__name__,
+                    " — TIMEOUT" if is_timeout_error(e) else "")
+        raise
+
+    elapsed = time.monotonic() - t0
+    out = []
     for q in _safe_parse_questions(txt):
         if not isinstance(q, dict) or not q.get("question"):
             continue
-        q["level"] = level  # enforce the target level regardless of what the model set
+        q["level"] = level
         out.append(q)
+    log.info("generate DONE  %s W%sD%s L%s: %s questions in %.1fs",
+             subject, week, day, level, len(out), elapsed)
     return out
 
 
 def generate_day_pool(subject, week, day, weak_spots, retention_queue, count_per_level=None) -> list[dict]:
-    """Generate a full day's pool: levels 1..5, 5-7 questions each."""
+    """Generate a full day's pool: levels 1..5, 5-7 questions each. All-or-nothing
+    per call — if a level fails, the exception propagates so the caller can roll
+    back and retry the whole day later (keeps idempotency simple)."""
     pool: list[dict] = []
     for level in range(1, 6):
         n = count_per_level if count_per_level is not None else random.randint(
@@ -69,7 +95,13 @@ def generate_writing_prompt(week, day, practiced_words, weak_spots) -> dict:
         targets.append(pool.pop(random.randrange(len(pool))))
 
     system = build_writing_prompt_system(lines, targets)
-    txt = call_claude([{"role": "user", "content": "Make today's writing prompt."}], system, max_tokens=500)
+    txt = call_claude(
+        [{"role": "user", "content": "Make today's writing prompt."}],
+        system,
+        max_tokens=500,
+        timeout=settings.generation_timeout,
+        retries=settings.generation_retries,
+    )
     try:
         p = extract_json(txt)
         if not p.get("targetWords"):

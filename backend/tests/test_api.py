@@ -84,7 +84,9 @@ def test_seed_run_nightly_and_writing_endpoints(monkeypatch):
         # seed W1 D1+D3 for both subjects
         r = client.post("/api/admin/seed", headers=HEADERS, json={"student_id": sid, "days": [1, 3]})
         assert r.status_code == 200, r.text
-        assert len(r.json()["prepared"]) == 4  # 2 subjects x 2 days
+        body = r.json()
+        assert body["succeeded"] == [1, 3] and body["failed"] == []
+        assert len(body["prepared"]) == 4  # 2 subjects x 2 days
 
         # writing prompt was created for english day 3
         rw = client.get(
@@ -98,3 +100,32 @@ def test_seed_run_nightly_and_writing_endpoints(monkeypatch):
         rn = client.post("/api/admin/run-nightly", headers=HEADERS)
         assert rn.status_code == 200 and rn.json()["students"] >= 1
         assert isinstance(rn.json()["prepared"], list)
+
+
+def test_seed_timeout_returns_504(monkeypatch):
+    from app import services
+    from app.db import SessionLocal
+    from app.main import app
+    from app.models import Student
+
+    class APITimeoutError(Exception):  # name -> classified as a timeout
+        pass
+
+    def boom(**k):
+        raise APITimeoutError("timed out")
+
+    monkeypatch.setattr(services, "generate_day_pool", boom)
+
+    with TestClient(app) as client:
+        db = SessionLocal()
+        s = Student(name="T504", current_week=1, current_day=1)
+        db.add(s)
+        db.commit()
+        sid = s.id
+        db.close()
+
+        r = client.post("/api/admin/seed", headers=HEADERS, json={"student_id": sid, "days": [1, 2]})
+        assert r.status_code == 504
+        body = r.json()
+        assert body["error"] == "anthropic_timeout"
+        assert body["succeeded"] == [] and sorted(body["failed"]) == [1, 2]

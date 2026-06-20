@@ -107,6 +107,8 @@ class SeedRequest(BaseModel):
 
 class SeedResponse(BaseModel):
     student_id: int
+    succeeded: list[int]
+    failed: list[int]
     prepared: list[dict]
 
 

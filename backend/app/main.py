@@ -18,11 +18,14 @@ from sqlalchemy import select
 
 from .config import settings
 from .db import SessionLocal, init_db
+from .log import configure_logging
 from .models import Student
 from .ratelimit import limiter
 from .routers import admin, play
 from .routers import progress as progress_router
 from .scheduler import shutdown_scheduler, start_scheduler
+
+configure_logging()
 
 
 def inject_app_config(html: str, api_base: str, api_secret: str) -> str:

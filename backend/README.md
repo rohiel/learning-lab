@@ -122,7 +122,9 @@ aggregation + manual flags, and parent review.
 |---|---|---|
 | `ANTHROPIC_API_KEY` | — | **required** to generate. Server-only. |
 | `ANTHROPIC_MODEL` | `claude-sonnet-4-6` | preserved from the HTML |
-| `ANTHROPIC_TIMEOUT` / `ANTHROPIC_MAX_RETRIES` | `40` / `1` | per-call timeout / retries |
+| `ANTHROPIC_TIMEOUT` / `ANTHROPIC_MAX_RETRIES` | `60` / `2` | timeout/retries for the quick calls (grading/help) |
+| `GENERATION_TIMEOUT` / `GENERATION_RETRIES` | `180` / `3` | timeout/retries for slow question-generation calls (exp. backoff) |
+| `LOG_LEVEL` | `INFO` | generation timing + retry logging |
 | `API_SHARED_SECRET` | `change-me` | the `X-API-Key` the frontend sends |
 | `DATABASE_URL` | `sqlite:///./data/tutor.db` | swap to Postgres with no code change |
 | `SCHEDULER_ENABLED` | `true` | start the nightly background job |

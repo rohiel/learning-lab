@@ -52,6 +52,25 @@ def test_failed_regeneration_keeps_existing(db_session, monkeypatch):
     assert regen is False and len(rows) == 2
 
 
+def test_idempotent_skips_generation(db_session, monkeypatch):
+    # Re-preparing a day that already has a pool must NOT call generation again.
+    calls = {"n": 0}
+
+    def gen(**k):
+        calls["n"] += 1
+        return list(CANNED)
+
+    monkeypatch.setattr(services, "generate_day_pool", gen)
+    s = _student(db_session)
+
+    services.prepare_day_pool(db_session, s, "math", 1, 1)
+    db_session.commit()
+    assert calls["n"] == 1
+
+    services.prepare_day_pool(db_session, s, "math", 1, 1)  # pool exists -> short-circuit
+    assert calls["n"] == 1  # unchanged: no Anthropic call
+
+
 def test_prepare_writing_prompt(db_session, monkeypatch):
     monkeypatch.setattr(
         services,

@@ -18,8 +18,12 @@ class Settings(BaseSettings):
     # ---- Anthropic ----
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
-    anthropic_timeout: float = 40.0
-    anthropic_max_retries: int = 1
+    anthropic_timeout: float = 60.0
+    anthropic_max_retries: int = 2
+    # Question-generation calls are large and reasoning-heavy (10-15 questions),
+    # so they get much more headroom than the quick grading/help calls.
+    generation_timeout: float = 180.0
+    generation_retries: int = 3
 
     # ---- Auth ----
     api_shared_secret: str = "change-me"

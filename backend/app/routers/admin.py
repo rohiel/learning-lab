@@ -4,16 +4,19 @@
 - POST /api/admin/generate-day     manually pre-generate one day's pool
 - GET  /api/admin/pool             inspect pool counts for a day
 - POST /api/admin/run-nightly      manually trigger the nightly batch (testing/recovery)
-- POST /api/admin/seed             seed Week 1 Days 1-3 for a student
+- POST /api/admin/seed             seed Week 1 Days 1-3 for a student (resilient/partial)
 - GET  /api/admin/writing-prompt   inspect a stored writing prompt
 
 generate-day is idempotent: a day's pool is generated ONCE and is otherwise
-static. Pass force=true to regenerate.
+static. Pass force=true to regenerate. On an Anthropic timeout these endpoints
+return a 504 with an actionable JSON body, not a raw 500.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..anthropic_client import is_timeout_error
 from ..auth import require_api_key
 from ..db import get_db
 from ..models import Student
@@ -39,6 +42,9 @@ from ..services import (
 
 router = APIRouter(tags=["admin"])
 
+_TIMEOUT_HINT = "API call timed out. Try seeding one day at a time, or re-run to retry just the failed days."
+_ERROR_HINT = "Generation failed. Check ANTHROPIC_API_KEY and the server logs, then retry the failed days."
+
 
 @router.get("/health")
 def health():
@@ -57,9 +63,23 @@ def generate_day(
     if not student:
         raise HTTPException(status_code=404, detail=f"No student with id {req.student_id}")
 
-    regenerated, rows = prepare_day_pool(
-        db, student, req.subject, req.week, req.day, force=req.force, count_per_level=req.count_per_level
-    )
+    try:
+        regenerated, rows = prepare_day_pool(
+            db, student, req.subject, req.week, req.day, force=req.force, count_per_level=req.count_per_level
+        )
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        timeout = is_timeout_error(e)
+        return JSONResponse(
+            status_code=504 if timeout else 502,
+            content={
+                "error": "anthropic_timeout" if timeout else "anthropic_error",
+                "message": _TIMEOUT_HINT if timeout else _ERROR_HINT,
+                "succeeded": [],
+                "failed": [req.day],
+            },
+        )
+
     if not rows:
         db.rollback()
         raise HTTPException(
@@ -113,10 +133,30 @@ def seed(
     student = db.get(Student, req.student_id)
     if not student:
         raise HTTPException(status_code=404, detail=f"No student with id {req.student_id}")
-    prepared = seed_initial_pools(
+
+    result = seed_initial_pools(
         db, student, week=req.week, days=tuple(req.days), count_per_level=req.count_per_level
     )
-    return SeedResponse(student_id=req.student_id, prepared=prepared)
+
+    if result["failed"]:
+        timeout = result["timed_out"]
+        # Partial (or total) failure -> actionable 504/502, not a raw 500.
+        return JSONResponse(
+            status_code=504 if timeout else 502,
+            content={
+                "error": "anthropic_timeout" if timeout else "anthropic_error",
+                "message": _TIMEOUT_HINT if timeout else _ERROR_HINT,
+                "succeeded": result["succeeded"],
+                "failed": result["failed"],
+            },
+        )
+
+    return SeedResponse(
+        student_id=req.student_id,
+        succeeded=result["succeeded"],
+        failed=result["failed"],
+        prepared=result["prepared"],
+    )
 
 
 @router.get("/admin/writing-prompt", response_model=WritingPromptPublic)
